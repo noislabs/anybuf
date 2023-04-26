@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+message Lights {
+  bool on = 3;
+}
+
+message Room {
+  uint32 number = 1;
+  Lights lights = 2;
+  uint64 size = 3;
+}
