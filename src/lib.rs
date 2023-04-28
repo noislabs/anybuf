@@ -3,7 +3,7 @@
 //! Supported:
 //! - Varint (u64)
 //! - Repeated: Just append a field multiple times
-//! - Nested: Just append an `Anything` instance
+//! - Nested: Just append an `Anybuf` instance
 //!
 //! Non supported:
 //!
@@ -11,7 +11,7 @@
 //! - Field sorting
 
 #[derive(Default)]
-pub struct Anything {
+pub struct Anybuf {
     output: Vec<u8>,
 }
 
@@ -53,7 +53,7 @@ fn varint_encode(mut n: u64, dest: &mut Vec<u8>) {
     dest.extend_from_slice(&buf[0..len]);
 }
 
-impl Anything {
+impl Anybuf {
     /// Creates a new serializer.
     pub fn new() -> Self {
         Self::default()
@@ -103,7 +103,7 @@ impl Anything {
     }
 
     /// Appends a nested protobuf message with the given field number.
-    pub fn append_message(self, field_number: u32, value: &Anything) -> Self {
+    pub fn append_message(self, field_number: u32, value: &Anybuf) -> Self {
         self.append_bytes(field_number, value.as_bytes())
     }
 
@@ -131,104 +131,104 @@ mod tests {
 
     #[test]
     fn new_returns_empty_data() {
-        let data = Anything::new();
+        let data = Anybuf::new();
         assert_eq!(data.into_vec(), &[]);
     }
 
     #[test]
     fn append_uint64_works() {
-        let data = Anything::new().append_uint64(1, 150);
+        let data = Anybuf::new().append_uint64(1, 150);
         assert_eq!(data.into_vec(), [0b00001000, 0b10010110, 0b00000001]);
 
         // Zero/Default field not written
-        let data = Anything::new().append_uint64(1, 0);
+        let data = Anybuf::new().append_uint64(1, 0);
         assert_eq!(data.into_vec(), &[]);
     }
 
     #[test]
     fn append_uint32_works() {
-        let data = Anything::new().append_uint32(1, 150);
+        let data = Anybuf::new().append_uint32(1, 150);
         assert_eq!(data.into_vec(), [0b00001000, 0b10010110, 0b00000001]);
 
         // large value (echo "number: 215874321" | protoc --encode=Room *.proto | hexdump -C)
-        let data = Anything::new().append_uint32(1, 215874321);
+        let data = Anybuf::new().append_uint32(1, 215874321);
         assert_eq!(data.into_vec(), b"\x08\x91\xf6\xf7\x66");
 
         // max value (echo "number: 4294967295" | protoc --encode=Room *.proto | hexdump -C)
-        let data = Anything::new().append_uint32(1, u32::MAX);
+        let data = Anybuf::new().append_uint32(1, u32::MAX);
         assert_eq!(data.into_vec(), b"\x08\xff\xff\xff\xff\x0f");
 
         // Zero/Default field not written
-        let data = Anything::new().append_uint32(1, 0);
+        let data = Anybuf::new().append_uint32(1, 0);
         assert_eq!(data.into_vec(), &[]);
     }
 
     #[test]
     fn append_bool_works() {
         // echo "on: true" | protoc --encode=Lights *.proto | hexdump -C
-        let data = Anything::new().append_bool(3, true);
+        let data = Anybuf::new().append_bool(3, true);
         assert_eq!(data.into_vec(), [0x18, 0x01]);
 
         // Zero/Default field not written
-        let data = Anything::new().append_bool(3, false);
+        let data = Anybuf::new().append_bool(3, false);
         assert_eq!(data.into_vec(), &[]);
     }
 
     #[test]
     fn append_bytes() {
         // &str
-        let data = Anything::new().append_bytes(2, "testing");
+        let data = Anybuf::new().append_bytes(2, "testing");
         assert_eq!(
             data.into_vec(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
         );
 
         // String
-        let data = Anything::new().append_bytes(2, String::from("testing"));
+        let data = Anybuf::new().append_bytes(2, String::from("testing"));
         assert_eq!(
             data.into_vec(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
         );
 
         // &[u8]
-        let data = Anything::new().append_bytes(2, b"testing");
+        let data = Anybuf::new().append_bytes(2, b"testing");
         assert_eq!(
             data.into_vec(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
         );
 
         // Empty field not written
-        let data = Anything::new().append_bytes(2, b"");
+        let data = Anybuf::new().append_bytes(2, b"");
         assert_eq!(data.into_vec(), []);
     }
 
     #[test]
     fn append_string() {
         // &str
-        let data = Anything::new().append_string(2, "testing");
+        let data = Anybuf::new().append_string(2, "testing");
         assert_eq!(
             data.into_vec(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
         );
 
         // String
-        let data = Anything::new().append_string(2, String::from("testing"));
+        let data = Anybuf::new().append_string(2, String::from("testing"));
         assert_eq!(
             data.into_vec(),
             [0x12, 0x07, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67]
         );
 
         // Empty field not written
-        let data = Anything::new().append_string(2, "");
+        let data = Anybuf::new().append_string(2, "");
         assert_eq!(data.into_vec(), []);
     }
 
     #[test]
     fn append_message_works() {
         // echo "number: 4; lights: {on: true}; size: 56" | protoc --encode=Room *.proto | hexdump -C
-        let data = Anything::new()
+        let data = Anybuf::new()
             .append_uint64(1, 4)
-            .append_message(2, &Anything::new().append_bool(3, true))
+            .append_message(2, &Anybuf::new().append_bool(3, true))
             .append_uint64(3, 56);
         assert_eq!(data.into_vec(), b"\x08\x04\x12\x02\x18\x01\x18\x38");
     }
