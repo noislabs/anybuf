@@ -54,10 +54,12 @@ fn varint_encode(mut n: u64, dest: &mut Vec<u8>) {
 }
 
 impl Anything {
+    /// Creates a new serializer.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Appends a bytes field to with the given field number.
     pub fn append_bytes(mut self, field_number: u32, data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
         if data.is_empty() {
@@ -72,6 +74,7 @@ impl Anything {
         self
     }
 
+    /// Appends a string field to with the given field number.
     #[inline]
     pub fn append_string(self, field_number: u32, data: impl AsRef<str>) -> Self {
         self.append_bytes(field_number, data.as_ref().as_bytes())
