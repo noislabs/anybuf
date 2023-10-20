@@ -33,7 +33,12 @@ enum WireType {
     // I32 = 5,
 }
 
-fn varint_encode(mut n: u64, dest: &mut Vec<u8>) {
+/// Encodes the unsigned integer n using the protobuf varint (varaible integer)
+/// format.
+///
+/// This implementation is limited to unsigned integers because it does not implement
+/// the zip-zag encoding required for supporting signed integers.
+fn unsigned_varint_encode(mut n: u64, dest: &mut Vec<u8>) {
     let mut buf = [0u8; 10];
     let mut len = 0;
     loop {
@@ -68,7 +73,7 @@ impl Anybuf {
         // tag
         self.append_tag(field_number, WireType::Len);
         // length
-        varint_encode(data.len() as u64, &mut self.output);
+        unsigned_varint_encode(data.len() as u64, &mut self.output);
         // value
         self.output.extend_from_slice(data);
         self
@@ -86,7 +91,7 @@ impl Anybuf {
             return self;
         }
         self.append_tag(field_number, WireType::Varint);
-        varint_encode(value, &mut self.output);
+        unsigned_varint_encode(value, &mut self.output);
         self
     }
 
@@ -121,7 +126,7 @@ impl Anybuf {
         // "The smallest field number you can specify is 1, and the largest is 2^29-1, or 536,870,911"
         // https://protobuf.dev/programming-guides/proto3/#assigning-field-numbers
         let tag: u32 = (field_number << 3) | field_type as u32;
-        varint_encode(tag as u64, &mut self.output);
+        unsigned_varint_encode(tag as u64, &mut self.output);
     }
 }
 
@@ -234,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn varint_encode_works() {
+    fn unsigned_varint_encode_works() {
         // examples from https://github.com/multiformats/unsigned-varint
         for (value, expected) in [
             (1, vec![0x01]),
@@ -245,7 +250,7 @@ mod tests {
             (16384, vec![0x80, 0x80, 0x01]),
         ] {
             let mut dest = Vec::new();
-            varint_encode(value, &mut dest);
+            unsigned_varint_encode(value, &mut dest);
             assert_eq!(dest, expected);
         }
 
@@ -262,7 +267,7 @@ mod tests {
             ),
         ] {
             let mut dest = Vec::new();
-            varint_encode(value, &mut dest);
+            unsigned_varint_encode(value, &mut dest);
             assert_eq!(dest, expected);
         }
     }
