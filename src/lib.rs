@@ -33,7 +33,9 @@ enum WireType {
     // I32 = 5,
 }
 
-fn varint_encode(mut n: u64, dest: &mut Vec<u8>) {
+/// Encodes the unsigned integer `n` using the protobuf varint (variable integer)
+/// format.
+fn unsigned_varint_encode(mut n: u64, dest: &mut Vec<u8>) {
     let mut buf = [0u8; 10];
     let mut len = 0;
     loop {
@@ -68,7 +70,7 @@ impl Anybuf {
         // tag
         self.append_tag(field_number, WireType::Len);
         // length
-        varint_encode(data.len() as u64, &mut self.output);
+        unsigned_varint_encode(data.len() as u64, &mut self.output);
         // value
         self.output.extend_from_slice(data);
         self
@@ -86,7 +88,7 @@ impl Anybuf {
             return self;
         }
         self.append_tag(field_number, WireType::Varint);
-        varint_encode(value, &mut self.output);
+        unsigned_varint_encode(value, &mut self.output);
         self
     }
 
@@ -121,7 +123,7 @@ impl Anybuf {
         // "The smallest field number you can specify is 1, and the largest is 2^29-1, or 536,870,911"
         // https://protobuf.dev/programming-guides/proto3/#assigning-field-numbers
         let tag: u32 = (field_number << 3) | field_type as u32;
-        varint_encode(tag as u64, &mut self.output);
+        unsigned_varint_encode(tag as u64, &mut self.output);
     }
 }
 
@@ -234,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn varint_encode_works() {
+    fn unsigned_varint_encode_works() {
         // examples from https://github.com/multiformats/unsigned-varint
         for (value, expected) in [
             (1, vec![0x01]),
@@ -245,7 +247,81 @@ mod tests {
             (16384, vec![0x80, 0x80, 0x01]),
         ] {
             let mut dest = Vec::new();
-            varint_encode(value, &mut dest);
+            unsigned_varint_encode(value, &mut dest);
+            assert_eq!(dest, expected);
+        }
+
+        // https://ngtzeyang94.medium.com/go-with-examples-protobuf-encoding-mechanics-54ceff48ebaa
+        let mut dest = Vec::new();
+        unsigned_varint_encode(18789, &mut dest);
+        assert_eq!(dest, [229, 146, 1]);
+
+        // From https://github.com/tokio-rs/prost/blob/v0.12.1/src/encoding.rs#L1626-L1678
+        let tests: Vec<(u64, &[u8])> = vec![
+            (2u64.pow(0) - 1, &[0x00]),
+            (2u64.pow(0), &[0x01]),
+            (2u64.pow(7) - 1, &[0x7F]),
+            (2u64.pow(7), &[0x80, 0x01]),
+            (300, &[0xAC, 0x02]),
+            (2u64.pow(14) - 1, &[0xFF, 0x7F]),
+            (2u64.pow(14), &[0x80, 0x80, 0x01]),
+            (2u64.pow(21) - 1, &[0xFF, 0xFF, 0x7F]),
+            (2u64.pow(21), &[0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(28) - 1, &[0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(28), &[0x80, 0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(35) - 1, &[0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(35), &[0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(42) - 1, &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(42), &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+            (
+                2u64.pow(49) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(49),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                2u64.pow(56) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(56),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                2u64.pow(63) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(63),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                u64::MAX,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+            ),
+        ];
+        for (value, expected) in tests {
+            let mut dest = Vec::new();
+            unsigned_varint_encode(value, &mut dest);
+            assert_eq!(dest, expected);
+        }
+
+        // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L90-L101 and
+        // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L39-L52
+        for (value, expected) in [
+            (0, vec![0x00]),
+            (128, vec![0x80, 0x01]),
+            (1234, vec![0xd2, 0x09]),
+            (u32::MAX as u64, vec![0xff, 0xff, 0xff, 0xff, 0x0f]),
+            (
+                u64::MAX,
+                vec![0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01],
+            ),
+        ] {
+            let mut dest = Vec::new();
+            unsigned_varint_encode(value, &mut dest);
             assert_eq!(dest, expected);
         }
     }
