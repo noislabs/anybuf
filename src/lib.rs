@@ -248,5 +248,22 @@ mod tests {
             varint_encode(value, &mut dest);
             assert_eq!(dest, expected);
         }
+
+        // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L90-L101 and
+        // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L39-L52
+        for (value, expected) in [
+            (0, vec![0x00]),
+            (128, vec![0x80, 0x01]),
+            (1234, vec![0xd2, 0x09]),
+            (u32::MAX as u64, vec![0xff, 0xff, 0xff, 0xff, 0x0f]),
+            (
+                u64::MAX,
+                vec![0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01],
+            ),
+        ] {
+            let mut dest = Vec::new();
+            varint_encode(value, &mut dest);
+            assert_eq!(dest, expected);
+        }
     }
 }
