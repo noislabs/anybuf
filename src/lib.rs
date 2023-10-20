@@ -232,4 +232,21 @@ mod tests {
             .append_uint64(3, 56);
         assert_eq!(data.into_vec(), b"\x08\x04\x12\x02\x18\x01\x18\x38");
     }
+
+    #[test]
+    fn varint_encode_works() {
+        // examples from https://github.com/multiformats/unsigned-varint
+        for (value, expected) in [
+            (1, vec![0x01]),
+            (127, vec![0x7f]),
+            (128, vec![0x80, 0x01]),
+            (255, vec![0xff, 0x01]),
+            (300, vec![0xac, 0x02]),
+            (16384, vec![0x80, 0x80, 0x01]),
+        ] {
+            let mut dest = Vec::new();
+            varint_encode(value, &mut dest);
+            assert_eq!(dest, expected);
+        }
+    }
 }
