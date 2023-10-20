@@ -33,11 +33,8 @@ enum WireType {
     // I32 = 5,
 }
 
-/// Encodes the unsigned integer n using the protobuf varint (varaible integer)
+/// Encodes the unsigned integer `n` using the protobuf varint (variable integer)
 /// format.
-///
-/// This implementation is limited to unsigned integers because it does not implement
-/// the zip-zag encoding required for supporting signed integers.
 fn unsigned_varint_encode(mut n: u64, dest: &mut Vec<u8>) {
     let mut buf = [0u8; 10];
     let mut len = 0;
