@@ -254,6 +254,63 @@ mod tests {
             assert_eq!(dest, expected);
         }
 
+        // https://ngtzeyang94.medium.com/go-with-examples-protobuf-encoding-mechanics-54ceff48ebaa
+        let mut dest = Vec::new();
+        unsigned_varint_encode(18789, &mut dest);
+        assert_eq!(dest, [229, 146, 1]);
+
+        // From https://github.com/tokio-rs/prost/blob/v0.12.1/src/encoding.rs#L1626-L1678
+        let tests: Vec<(u64, &[u8])> = vec![
+            (2u64.pow(0) - 1, &[0x00]),
+            (2u64.pow(0), &[0x01]),
+            (2u64.pow(7) - 1, &[0x7F]),
+            (2u64.pow(7), &[0x80, 0x01]),
+            (300, &[0xAC, 0x02]),
+            (2u64.pow(14) - 1, &[0xFF, 0x7F]),
+            (2u64.pow(14), &[0x80, 0x80, 0x01]),
+            (2u64.pow(21) - 1, &[0xFF, 0xFF, 0x7F]),
+            (2u64.pow(21), &[0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(28) - 1, &[0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(28), &[0x80, 0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(35) - 1, &[0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(35), &[0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+            (2u64.pow(42) - 1, &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]),
+            (2u64.pow(42), &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01]),
+            (
+                2u64.pow(49) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(49),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                2u64.pow(56) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(56),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                2u64.pow(63) - 1,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F],
+            ),
+            (
+                2u64.pow(63),
+                &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+            ),
+            (
+                u64::MAX,
+                &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+            ),
+        ];
+        for (value, expected) in tests {
+            let mut dest = Vec::new();
+            unsigned_varint_encode(value, &mut dest);
+            assert_eq!(dest, expected);
+        }
+
         // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L90-L101 and
         // https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L39-L52
         for (value, expected) in [
