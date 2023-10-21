@@ -10,9 +10,9 @@
 //! - Fixed length types
 //! - Field sorting
 
-use varint::{to_zigzag32, to_zigzag64};
-
 mod varint;
+
+use varint::{to_zigzag32, to_zigzag64};
 
 #[derive(Default)]
 pub struct Anybuf {
