@@ -8,4 +8,6 @@ message Room {
   uint32 number = 1;
   Lights lights = 2;
   uint64 size = 3;
+  sint32 altitude = 4;
+  sint64 temperature = 5;
 }
