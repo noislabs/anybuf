@@ -1,7 +1,7 @@
 //! A minimal (like seriously), zero dependency protobuf encoder.
 //!
 //! Supported:
-//! - Varint (u64)
+//! - Varint (bool/uint32/uint64/sint32/sint64)
 //! - Repeated: Just append a field multiple times
 //! - Nested: Just append an `Anybuf` instance
 //!
@@ -11,6 +11,8 @@
 //! - Field sorting
 
 mod varint;
+
+use varint::{to_zigzag32, to_zigzag64};
 
 #[derive(Default)]
 pub struct Anybuf {
@@ -63,7 +65,7 @@ impl Anybuf {
         Self::default()
     }
 
-    /// Appends a bytes field to with the given field number.
+    /// Appends a bytes field with the given field number.
     pub fn append_bytes(mut self, field_number: u32, data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
         if data.is_empty() {
@@ -78,13 +80,13 @@ impl Anybuf {
         self
     }
 
-    /// Appends a string field to with the given field number.
+    /// Appends a string field with the given field number.
     #[inline]
     pub fn append_string(self, field_number: u32, data: impl AsRef<str>) -> Self {
         self.append_bytes(field_number, data.as_ref().as_bytes())
     }
 
-    /// Appends a uint64 field to with the given field number.
+    /// Appends a uint64 field with the given field number.
     pub fn append_uint64(mut self, field_number: u32, value: u64) -> Self {
         if value == 0 {
             return self;
@@ -94,16 +96,32 @@ impl Anybuf {
         self
     }
 
-    /// Appends a uint32 field to with the given field number.
+    /// Appends a uint32 field with the given field number.
     #[inline]
     pub fn append_uint32(self, field_number: u32, value: u32) -> Self {
         self.append_uint64(field_number, value.into())
     }
 
-    /// Appends a bool field to with the given field number.
+    /// Appends a bool field with the given field number.
     #[inline]
     pub fn append_bool(self, field_number: u32, value: bool) -> Self {
         self.append_uint64(field_number, value.into())
+    }
+
+    /// Appends an sint32 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for the former.
+    pub fn append_sint32(self, field_number: u32, value: i32) -> Self {
+        self.append_uint32(field_number, to_zigzag32(value))
+    }
+
+    /// Appends an sint64 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for the former.
+    pub fn append_sint64(self, field_number: u32, value: i64) -> Self {
+        self.append_uint64(field_number, to_zigzag64(value))
     }
 
     /// Appends a nested protobuf message with the given field number.
@@ -132,6 +150,7 @@ impl Anybuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hex_literal::hex;
 
     #[test]
     fn new_returns_empty_data() {
@@ -165,6 +184,92 @@ mod tests {
         // Zero/Default field not written
         let data = Anybuf::new().append_uint32(1, 0);
         assert_eq!(data.into_vec(), &[]);
+    }
+
+    #[test]
+    fn append_sint32_works() {
+        // for x in -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647; do echo "$x,$(echo "altitude: $x" | protoc --encode=Room *.proto | xxd -p)"; done
+        assert_eq!(
+            Anybuf::new().append_sint32(4, -2147483648).into_vec(),
+            hex!("20ffffffff0f")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint32(4, -735983).into_vec(),
+            hex!("20ddeb59")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint32(4, -456).into_vec(),
+            hex!("208f07")
+        );
+        assert_eq!(Anybuf::new().append_sint32(4, -2).into_vec(), hex!("2003"));
+        assert_eq!(Anybuf::new().append_sint32(4, -1).into_vec(), hex!("2001"));
+        assert_eq!(Anybuf::new().append_sint32(4, 0).into_vec(), hex!(""));
+        assert_eq!(Anybuf::new().append_sint32(4, 1).into_vec(), hex!("2002"));
+        assert_eq!(Anybuf::new().append_sint32(4, 5).into_vec(), hex!("200a"));
+        assert_eq!(Anybuf::new().append_sint32(4, 21).into_vec(), hex!("202a"));
+        assert_eq!(
+            Anybuf::new().append_sint32(4, 900).into_vec(),
+            hex!("20880e")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint32(4, 8247598).into_vec(),
+            hex!("20dce4ee07")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint32(4, 2147483647).into_vec(),
+            hex!("20feffffff0f")
+        );
+    }
+
+    #[test]
+    fn append_sint64_works() {
+        // for x in -9223372036854775808 -2147483649 -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647 2147483648 9223372036854775807; do echo "$x,$(echo "temperature: $x" | protoc --encode=Room *.proto | xxd -p)"; done
+        assert_eq!(
+            Anybuf::new().append_sint64(5, i64::MIN).into_vec(),
+            hex!("28ffffffffffffffffff01")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, -2147483649).into_vec(),
+            hex!("288180808010")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, -2147483648).into_vec(),
+            hex!("28ffffffff0f")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, -735983).into_vec(),
+            hex!("28ddeb59")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, -456).into_vec(),
+            hex!("288f07")
+        );
+        assert_eq!(Anybuf::new().append_sint64(5, -2).into_vec(), hex!("2803"));
+        assert_eq!(Anybuf::new().append_sint64(5, -1).into_vec(), hex!("2801"));
+        assert_eq!(Anybuf::new().append_sint64(5, 0).into_vec(), hex!(""));
+        assert_eq!(Anybuf::new().append_sint64(5, 1).into_vec(), hex!("2802"));
+        assert_eq!(Anybuf::new().append_sint64(5, 5).into_vec(), hex!("280a"));
+        assert_eq!(Anybuf::new().append_sint64(5, 21).into_vec(), hex!("282a"));
+        assert_eq!(
+            Anybuf::new().append_sint64(5, 900).into_vec(),
+            hex!("28880e")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, 8247598).into_vec(),
+            hex!("28dce4ee07")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, 2147483647).into_vec(),
+            hex!("28feffffff0f")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, 2147483648).into_vec(),
+            hex!("288080808010")
+        );
+        assert_eq!(
+            Anybuf::new().append_sint64(5, i64::MAX).into_vec(),
+            hex!("28feffffffffffffffff01")
+        );
     }
 
     #[test]

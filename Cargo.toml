@@ -13,3 +13,4 @@ repository = "https://github.com/noislabs/anybuf"
 [dependencies]
 
 [dev-dependencies]
+hex-literal = "0.4.1"
