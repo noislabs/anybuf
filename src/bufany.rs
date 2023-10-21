@@ -31,7 +31,7 @@ use crate::slice_reader::SliceReader;
 #[derive(Debug)]
 pub struct Bufany<'a> {
     // A map from field number to decoded value.
-    fields: HashMap<u32, Value<'a>>,
+    fields: HashMap<u32, Vec<Value<'a>>>,
 }
 
 #[derive(Debug)]
@@ -72,7 +72,7 @@ impl<'a> Bufany<'a> {
             let wire_type = (tag & 0x07) as u8;
 
             let value = read_value(&mut reader, wire_type)?;
-            out.fields.insert(field_number, value);
+            out.fields.entry(field_number).or_default().push(value);
         }
 
         Ok(out)
@@ -96,11 +96,8 @@ impl<'a> Bufany<'a> {
     /// assert_eq!(decoded.bytes(2), Some(vec![0xF0, 0x00]));
     /// ```
     pub fn bytes(&self, field_number: u32) -> Option<Vec<u8>> {
-        let Some(value) = self.fields.get(&field_number) else {
-            return None;
-        };
-        match value {
-            Value::VariableLength(data) => Some(data.to_vec()),
+        match self.value_ref(field_number) {
+            Some(Value::VariableLength(data)) => Some(data.to_vec()),
             _ => None,
         }
     }
@@ -148,11 +145,8 @@ impl<'a> Bufany<'a> {
     /// assert_eq!(decoded.uint64(3), None);
     /// ```
     pub fn uint64(&self, field_number: u32) -> Option<u64> {
-        let Some(value) = self.fields.get(&field_number) else {
-            return None;
-        };
-        match value {
-            Value::Varint(data) => Some(*data),
+        match self.value_ref(field_number) {
+            Some(Value::Varint(data)) => Some(*data),
             _ => None,
         }
     }
@@ -180,11 +174,8 @@ impl<'a> Bufany<'a> {
     /// assert_eq!(decoded.uint32(4), None);
     /// ```
     pub fn uint32(&self, field_number: u32) -> Option<u32> {
-        let Some(value) = self.fields.get(&field_number) else {
-            return None;
-        };
-        match value {
-            Value::Varint(data) => (*data).try_into().ok(),
+        match self.value_ref(field_number) {
+            Some(Value::Varint(data)) => (*data).try_into().ok(),
             _ => None,
         }
     }
@@ -192,7 +183,16 @@ impl<'a> Bufany<'a> {
     /// Gets the value of the given field number. This returns None if
     /// the field number does not exist
     pub fn value(&self, field_number: u32) -> Option<Value> {
-        self.fields.get(&field_number).cloned()
+        self.value_ref(field_number).cloned()
+    }
+
+    /// Gets the first value of the given field number as a reference.
+    /// This returns None if the field number does not exist
+    fn value_ref(&self, field_number: u32) -> Option<&Value<'_>> {
+        match self.fields.get(&field_number) {
+            Some(field) => field.first(),
+            None => None,
+        }
     }
 }
 
@@ -287,7 +287,7 @@ mod tests {
         let serialized = Anybuf::new().append_uint64(1, 150).into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.fields.len(), 1);
-        assert_eq!(decoded.fields.get(&1).unwrap(), Value::Varint(150));
+        assert_eq!(decoded.fields.get(&1).unwrap(), &[Value::Varint(150)]);
 
         // two fields
         let serialized = Anybuf::new()
@@ -296,8 +296,8 @@ mod tests {
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.fields.len(), 2);
-        assert_eq!(decoded.fields.get(&1).unwrap(), Value::Varint(150));
-        assert_eq!(decoded.fields.get(&2).unwrap(), Value::Varint(42));
+        assert_eq!(decoded.fields.get(&1).unwrap(), &[Value::Varint(150)]);
+        assert_eq!(decoded.fields.get(&2).unwrap(), &[Value::Varint(42)]);
 
         // two fields out of order
         let serialized = Anybuf::new()
@@ -306,17 +306,20 @@ mod tests {
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.fields.len(), 2);
-        assert_eq!(decoded.fields.get(&1).unwrap(), Value::Varint(150));
-        assert_eq!(decoded.fields.get(&2).unwrap(), Value::Varint(42));
+        assert_eq!(decoded.fields.get(&1).unwrap(), &[Value::Varint(150)]);
+        assert_eq!(decoded.fields.get(&2).unwrap(), &[Value::Varint(42)]);
 
-        // two fields overwriting each other
+        // two fields of the same number
         let serialized = Anybuf::new()
             .append_uint64(7, 42)
             .append_uint64(7, 150)
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.fields.len(), 1);
-        assert_eq!(decoded.fields.get(&7).unwrap(), Value::Varint(150));
+        assert_eq!(
+            decoded.fields.get(&7).unwrap(),
+            &[Value::Varint(42), Value::Varint(150)]
+        );
 
         // A single variable length field
         let serialized = [10, 4, 116, 114, 117, 101];
@@ -324,7 +327,29 @@ mod tests {
         assert_eq!(decoded.fields.len(), 1);
         assert_eq!(
             decoded.fields.get(&1).unwrap(),
-            Value::VariableLength(&[116, 114, 117, 101])
+            &[Value::VariableLength(&[116, 114, 117, 101])]
+        );
+    }
+
+    #[test]
+    fn deserialize_repeated_works() {
+        // An uint64 list in field number 7
+        let serialized = Anybuf::new()
+            .append_uint64(7, 150)
+            .append_uint64(7, 42)
+            .append_uint64(7, 1)
+            .append_uint64(7, 0xFFFFFFFFFFFFFFFF)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.fields.len(), 1);
+        assert_eq!(
+            decoded.fields.get(&7).unwrap(),
+            &[
+                Value::Varint(150),
+                Value::Varint(42),
+                Value::Varint(1),
+                Value::Varint(0xFFFFFFFFFFFFFFFF)
+            ]
         );
     }
 
