@@ -65,7 +65,7 @@ impl Anybuf {
         Self::default()
     }
 
-    /// Appends a bytes field to with the given field number.
+    /// Appends a bytes field with the given field number.
     pub fn append_bytes(mut self, field_number: u32, data: impl AsRef<[u8]>) -> Self {
         let data = data.as_ref();
         if data.is_empty() {
@@ -80,13 +80,13 @@ impl Anybuf {
         self
     }
 
-    /// Appends a string field to with the given field number.
+    /// Appends a string field with the given field number.
     #[inline]
     pub fn append_string(self, field_number: u32, data: impl AsRef<str>) -> Self {
         self.append_bytes(field_number, data.as_ref().as_bytes())
     }
 
-    /// Appends a uint64 field to with the given field number.
+    /// Appends a uint64 field with the given field number.
     pub fn append_uint64(mut self, field_number: u32, value: u64) -> Self {
         if value == 0 {
             return self;
@@ -96,13 +96,13 @@ impl Anybuf {
         self
     }
 
-    /// Appends a uint32 field to with the given field number.
+    /// Appends a uint32 field with the given field number.
     #[inline]
     pub fn append_uint32(self, field_number: u32, value: u32) -> Self {
         self.append_uint64(field_number, value.into())
     }
 
-    /// Appends a bool field to with the given field number.
+    /// Appends a bool field with the given field number.
     #[inline]
     pub fn append_bool(self, field_number: u32, value: bool) -> Self {
         self.append_uint64(field_number, value.into())
