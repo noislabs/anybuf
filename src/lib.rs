@@ -10,6 +10,8 @@
 //! - Fixed length types
 //! - Field sorting
 
+mod varint;
+
 #[derive(Default)]
 pub struct Anybuf {
     output: Vec<u8>,
