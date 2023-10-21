@@ -18,8 +18,11 @@
 //! - Packed encoding for repeated fields
 //! - int32/int64
 
+mod bufany;
+mod slice_reader;
 mod varint;
 
+pub use bufany::{Bufany, BufanyError};
 use varint::{to_zigzag32, to_zigzag64};
 
 #[derive(Default)]
