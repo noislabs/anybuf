@@ -1,7 +1,7 @@
 //! A minimal (like seriously), zero dependency protobuf encoder.
 //!
 //! Supported:
-//! - Varint (u64)
+//! - Varint (bool/uint32/uint64/sint32/sint64)
 //! - Repeated: Just append a field multiple times
 //! - Nested: Just append an `Anybuf` instance
 //!
