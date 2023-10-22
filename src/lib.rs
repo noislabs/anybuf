@@ -1,14 +1,22 @@
 //! A minimal (like seriously), zero dependency protobuf encoder.
 //!
+//! ## Non goals
+//! - ~~Decoding~~ (Upcoming in <https://github.com/noislabs/anybuf/pull/2>)
+//! - protobuf 2 things
+//! - Field sorting
+//! - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
+//!
 //! Supported:
-//! - Varint (bool/uint32/uint64/sint32/sint64)
+//! - Varint fields (bool/uint32/uint64/sint32/sint64)
+//! - Variable length fields (string/bytes)
 //! - Repeated (bool/uint32/uint64/string/bytes)
 //! - Nested: Just append an `Anybuf` instance
 //!
 //! Non supported:
 //!
 //! - Fixed length types
-//! - Field sorting
+//! - Packed encoding for repeated fields
+//! - int32/int64
 
 mod varint;
 
