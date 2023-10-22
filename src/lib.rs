@@ -139,7 +139,7 @@ impl Anybuf {
 
     /// Appends a repeated field of type uint32.
     ///
-    /// Use this instead of multiple `append_uint32` to ensure 0 values are not lost.
+    /// Use this instead of multiple [`Anybuf::append_uint32`] to ensure 0 values are not lost.
     pub fn append_repeated_uint32(mut self, field_number: u32, data: &[u32]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -150,7 +150,7 @@ impl Anybuf {
 
     /// Appends a repeated field of type uint64.
     ///
-    /// Use this instead of multiple `append_uint64` to ensure 0 values are not lost.
+    /// Use this instead of multiple [`Anybuf::append_uint64`] to ensure 0 values are not lost.
     pub fn append_repeated_uint64(mut self, field_number: u32, data: &[u64]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -161,7 +161,7 @@ impl Anybuf {
 
     /// Appends a repeated field of type bool.
     ///
-    /// Use this instead of multiple `append_bool` to ensure false values are not lost.
+    /// Use this instead of multiple [`Anybuf::append_bool`] to ensure false values are not lost.
     pub fn append_repeated_bool(mut self, field_number: u32, data: &[bool]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -172,7 +172,18 @@ impl Anybuf {
 
     /// Appends a repeated field of type string.
     ///
-    /// Use this instead of multiple `append_string` to ensure "" values are not lost.
+    /// Use this instead of multiple [`Anybuf::append_string`] to ensure "" values are not lost.
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// let name = "Bono".to_string();
+    ///
+    /// // Three string fields with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &["", "Caro", &name])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_string(mut self, field_number: u32, data: &[&str]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Len);
@@ -184,7 +195,19 @@ impl Anybuf {
 
     /// Appends a repeated field of type bytes.
     ///
-    /// Use this instead of multiple `append_string` to ensure empty values are not lost.
+    /// Use this instead of multiple [`Anybuf::append_bytes`] to ensure empty values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// let blob = vec![4u8; 75];
+    ///
+    /// // Three bytes fields with field number 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &[b"", b"abcd", &blob])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_bytes(mut self, field_number: u32, data: &[&[u8]]) -> Self {
         for value in data {
             // tag
@@ -197,11 +220,17 @@ impl Anybuf {
         self
     }
 
+    /// Returns the protobuf bytes of the instance.
+    ///
+    /// The data is the same as [`Anybuf::into_vec`] but does not consume the instance.
     pub fn as_bytes(&self) -> &[u8] {
         &self.output
     }
 
-    /// Takes the instance and returns the protobuf bytes
+    /// Takes the instance and returns the protobuf bytes.
+    ///
+    /// The data is the same as [`Anybuf::as_bytes`] but consumes the instance in order to
+    /// return an owned vector without cloning the data.
     pub fn into_vec(self) -> Vec<u8> {
         self.output
     }
