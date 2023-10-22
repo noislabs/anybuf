@@ -17,7 +17,7 @@ understand the API.
 ## Supported:
 
 - Varint (bool/uint32/uint64/sint32/sint64)
-- Repeated: Just append a field multiple times
+- Repeated (bool/uint32/uint64/string/bytes)
 - Nested: Just append an `Anybuf` instance
 
 ## Non supported
@@ -34,9 +34,7 @@ let data = Anybuf::new()
     .append_string(2, "hello")  // field number 2 gets a string
     .append_bytes(3, b"hello")  // field number 3 gets bytes
     .append_message(4, &Anybuf::new().append_bool(3, true)) // field 4 gets a message
-    .append_uint64(5, 23)       // field number 5 is a repeated uint64
-    .append_uint64(5, 56)
-    .append_uint64(5, 192)
+    .append_repeated_uint64(5, &[23, 56, 192])              // field number 5 is a repeated uint64
     .into_vec();                // done
 
 // data is now a serialized protobuf doocument
