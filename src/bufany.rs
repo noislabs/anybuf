@@ -226,11 +226,12 @@ impl<'a> Bufany<'a> {
         self.value_ref(field_number).cloned()
     }
 
-    /// Gets the first value of the given field number as a reference.
-    /// This returns None if the field number does not exist
+    /// Gets the last value of the given field number as a reference.
+    /// This allows us to comply to the "Last One Wins" rule: <https://protobuf.dev/programming-guides/encoding/#last-one-wins>.
+    /// This returns None if the field number does not exist.
     fn value_ref(&self, field_number: u32) -> Option<&Value<'_>> {
         match self.fields.get(&field_number) {
-            Some(field) => field.first(),
+            Some(field) => field.last(),
             None => None,
         }
     }
@@ -420,6 +421,28 @@ mod tests {
             BufanyError::InvalidTag => {}
             err => panic!("Unexpected error: {err:?}"),
         }
+    }
+
+    #[test]
+    fn string_works() {
+        let serialized = Anybuf::new()
+            .append_uint64(1, 150)
+            .append_string(2, "blub")
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.string(1), None);
+        assert_eq!(decoded.string(2), Some("blub".to_string()));
+
+        // Last One Wins (https://protobuf.dev/programming-guides/encoding/#last-one-wins)
+        let serialized = Anybuf::new()
+            .append_uint64(1, 150)
+            .append_string(2, "one")
+            .append_string(2, "two")
+            .append_string(2, "three")
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.string(1), None);
+        assert_eq!(decoded.string(2), Some("three".to_string()));
     }
 
     #[test]
