@@ -423,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    fn get_bytes_works() {
+    fn bytes_works() {
         let serialized = Anybuf::new()
             .append_uint64(1, 150)
             .append_bytes(2, vec![0xF0, 0x00])
