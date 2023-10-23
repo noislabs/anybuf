@@ -32,6 +32,8 @@ use crate::slice_reader::SliceReader;
 pub struct Bufany<'a> {
     // A map from field number to decoded value.
     fields: HashMap<u32, Vec<Value<'a>>>,
+    // A vector that is always empty and has the lifetime we need.
+    empty_vec: Vec<Value<'a>>,
 }
 
 #[derive(Debug)]
@@ -47,11 +49,20 @@ pub enum BufanyError {
     Other,
 }
 
+#[derive(Debug)]
+pub enum RepeatedError {
+    /// Found a value of the wrong wire type
+    TypeMismatch,
+    /// A variable length field did not contain valid UTF-8.
+    InvalidUtf8,
+}
+
 impl<'a> Bufany<'a> {
     /// Creates a new serializer.
     pub fn deserialize(serialized: &'a [u8]) -> Result<Bufany<'a>, BufanyError> {
         let mut out: Bufany<'a> = Bufany {
             fields: Default::default(),
+            empty_vec: Default::default(),
         };
 
         let mut reader = SliceReader::new(serialized);
@@ -180,6 +191,35 @@ impl<'a> Bufany<'a> {
         }
     }
 
+    /// Gets repeated string from the given field number.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_uint64(1, 150)
+    ///     .append_bytes(2, vec![0xF0, 0x00])
+    ///     .append_repeated_string(3, &["valid utf8 string", "hello"])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_string(3).unwrap(), ["valid utf8 string".to_string(), "hello".to_string()]);
+    /// ```
+    pub fn repeated_string(&self, field_number: u32) -> Result<Vec<String>, RepeatedError> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::VariableLength(data) => out.push(
+                    String::from_utf8(data.to_vec()).map_err(|_e| RepeatedError::InvalidUtf8)?,
+                ),
+                _ => return Err(RepeatedError::TypeMismatch),
+            }
+        }
+        Ok(out)
+    }
+
     /// Gets the value of the given field number. This returns None if
     /// the field number does not exist
     pub fn value(&self, field_number: u32) -> Option<Value> {
@@ -193,6 +233,10 @@ impl<'a> Bufany<'a> {
             Some(field) => field.first(),
             None => None,
         }
+    }
+
+    fn repeated_value_ref(&self, field_number: u32) -> &Vec<Value<'_>> {
+        self.fields.get(&field_number).unwrap_or(&self.empty_vec)
     }
 }
 
@@ -387,6 +431,31 @@ mod tests {
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.bytes(1), None);
         assert_eq!(decoded.bytes(2), Some(vec![0xF0, 0x00]));
+    }
+
+    #[test]
+    fn repeated_string_works() {
+        // two strings
+        let serialized = Anybuf::new()
+            .append_repeated_string(7, &["foo", "bar"])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_string(7).unwrap(), &["foo", "bar"]);
+
+        // duplicates and empty values
+        let serialized = Anybuf::new()
+            .append_repeated_string(7, &["foo", "foo", "", "ok"])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(
+            decoded.repeated_string(7).unwrap(),
+            &["foo", "foo", "", "ok"]
+        );
+
+        // empty list
+        let serialized = Anybuf::new().append_repeated_string(7, &[]).into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_string(7).unwrap(), Vec::<String>::new());
     }
 
     #[test]
