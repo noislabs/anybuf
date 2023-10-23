@@ -335,10 +335,7 @@ mod tests {
     fn deserialize_repeated_works() {
         // An uint64 list in field number 7
         let serialized = Anybuf::new()
-            .append_uint64(7, 150)
-            .append_uint64(7, 42)
-            .append_uint64(7, 1)
-            .append_uint64(7, 0xFFFFFFFFFFFFFFFF)
+            .append_repeated_uint64(7, &[150, 42, 1, 0, 0xFFFFFFFFFFFFFFFF])
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.fields.len(), 1);
@@ -348,6 +345,7 @@ mod tests {
                 Value::Varint(150),
                 Value::Varint(42),
                 Value::Varint(1),
+                Value::Varint(0),
                 Value::Varint(0xFFFFFFFFFFFFFFFF)
             ]
         );
