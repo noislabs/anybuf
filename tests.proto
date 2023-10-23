@@ -11,3 +11,16 @@ message Room {
   sint32 altitude = 4;
   sint64 temperature = 5;
 }
+
+message Collection {
+  string id                       =  1;
+  repeated uint32 numbers_uint32  =  2 [packed = false];
+  repeated uint64 numbers_uint64  =  3 [packed = false];
+  repeated sint32 numbers_sint32  =  4 [packed = false];
+  repeated sint64 numbers_sint64  =  5 [packed = false];
+  repeated int32 numbers_int32    =  6 [packed = false];
+  repeated int64 numbers_int64    =  7 [packed = false];
+  repeated bool booleans          =  8 [packed = false];
+  repeated string strings         =  9 [packed = false];
+  repeated bytes bytess           = 10 [packed = false];
+}

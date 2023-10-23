@@ -1,14 +1,22 @@
 //! A minimal (like seriously), zero dependency protobuf encoder.
 //!
+//! ## Non goals
+//! - ~~Decoding~~ (Upcoming in <https://github.com/noislabs/anybuf/pull/2>)
+//! - protobuf 2 things
+//! - Field sorting
+//! - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
+//!
 //! Supported:
-//! - Varint (bool/uint32/uint64/sint32/sint64)
-//! - Repeated: Just append a field multiple times
+//! - Varint fields (bool/uint32/uint64/sint32/sint64)
+//! - Variable length fields (string/bytes)
+//! - Repeated (bool/uint32/uint64/string/bytes)
 //! - Nested: Just append an `Anybuf` instance
 //!
 //! Non supported:
 //!
 //! - Fixed length types
-//! - Field sorting
+//! - Packed encoding for repeated fields
+//! - int32/int64
 
 mod varint;
 
@@ -129,11 +137,143 @@ impl Anybuf {
         self.append_bytes(field_number, value.as_bytes())
     }
 
+    /// Appends a repeated field of type uint32.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_uint32`] to ensure 0 values are not lost.
+    pub fn append_repeated_uint32(mut self, field_number: u32, data: &[u32]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode((*value).into(), &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type uint64.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_uint64`] to ensure 0 values are not lost.
+    pub fn append_repeated_uint64(mut self, field_number: u32, data: &[u64]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode(*value, &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type sint32.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_sint32`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Three signed ints with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_sint32(3, &[-30, 0, 17])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_sint32(mut self, field_number: u32, data: &[i32]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode(to_zigzag32(*value).into(), &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type sint64.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_sint64`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Three signed ints with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_sint64(4, &[-30, 0, 17])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_sint64(mut self, field_number: u32, data: &[i64]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode(to_zigzag64(*value), &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type bool.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_bool`] to ensure false values are not lost.
+    pub fn append_repeated_bool(mut self, field_number: u32, data: &[bool]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode((*value).into(), &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type string.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_string`] to ensure "" values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// let name = "Bono".to_string();
+    ///
+    /// // Three string fields with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &["", "Caro", &name])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_string(mut self, field_number: u32, data: &[&str]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Len);
+            unsigned_varint_encode(value.len() as u64, &mut self.output);
+            self.output.extend_from_slice(value.as_bytes());
+        }
+        self
+    }
+
+    /// Appends a repeated field of type bytes.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_bytes`] to ensure empty values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// let blob = vec![4u8; 75];
+    ///
+    /// // Three bytes fields with field number 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &[b"", b"abcd", &blob])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_bytes(mut self, field_number: u32, data: &[&[u8]]) -> Self {
+        for value in data {
+            // tag
+            self.append_tag(field_number, WireType::Len);
+            // length
+            unsigned_varint_encode(value.len() as u64, &mut self.output);
+            // value
+            self.output.extend_from_slice(value);
+        }
+        self
+    }
+
+    /// Returns the protobuf bytes of the instance.
+    ///
+    /// The data is the same as [`Anybuf::into_vec`] but does not consume the instance.
     pub fn as_bytes(&self) -> &[u8] {
         &self.output
     }
 
-    /// Takes the instance and returns the protobuf bytes
+    /// Takes the instance and returns the protobuf bytes.
+    ///
+    /// The data is the same as [`Anybuf::as_bytes`] but consumes the instance in order to
+    /// return an owned vector without cloning the data.
     pub fn into_vec(self) -> Vec<u8> {
         self.output
     }
@@ -340,6 +480,129 @@ mod tests {
             .append_message(2, &Anybuf::new().append_bool(3, true))
             .append_uint64(3, 56);
         assert_eq!(data.into_vec(), b"\x08\x04\x12\x02\x18\x01\x18\x38");
+    }
+
+    #[test]
+    fn append_repeated_uint32_works() {
+        // echo "id: \"uint32s\"; numbers_uint32: [0, 1, 2, 37546, 4294967295]" | protoc --encode=Collection *.proto | xxd -p
+        let data = Anybuf::new()
+            .append_string(1, "uint32s")
+            .append_repeated_uint32(2, &[0, 1, 2, 37546, 4294967295]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a0775696e7433327310001001100210aaa50210ffffffff0f")
+        );
+
+        // echo "id: \"no uint32s\"; numbers_uint32: []" | protoc --encode=Collection *.proto | xxd -p
+        let data = Anybuf::new()
+            .append_string(1, "no uint32s")
+            .append_repeated_uint32(2, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0a6e6f2075696e74333273"));
+    }
+
+    #[test]
+    fn append_repeated_uint64_works() {
+        // echo "id: \"uint64s\"; numbers_uint64: [0, 1, 2, 37546, 4294967295, 18446744073709551615]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "uint64s")
+            .append_repeated_uint64(3, &[0, 1, 2, 37546, 4294967295, u64::MAX]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a0775696e7436347318001801180218aaa50218ffffffff0f18ffffffffffffffffff01")
+        );
+
+        // echo "id: \"no uint64s\"; numbers_uint64: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no uint64s")
+            .append_repeated_uint64(3, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0a6e6f2075696e74363473"));
+    }
+
+    #[test]
+    fn append_repeated_sint32_works() {
+        // echo "id: \"sint32s\"; numbers_sint32: [-2147483648, -1, 0, 1, 2, 37546, 2147483647]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "sint32s")
+            .append_repeated_sint32(4, &[i32::MIN, -1, 0, 1, 2, 37546, i32::MAX]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a0773696e7433327320ffffffff0f200120002002200420d4ca0420feffffff0f")
+        );
+
+        // echo "id: \"no sint32s\"; numbers_sint32: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no sint32s")
+            .append_repeated_sint32(4, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0a6e6f2073696e74333273"));
+    }
+
+    #[test]
+    fn append_repeated_sint64_works() {
+        // echo "id: \"sint64s\"; numbers_sint64: [-9223372036854775808, -1, 0, 1, 2, 37546, 4294967295, 9223372036854775807]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "sint64s")
+            .append_repeated_sint64(5, &[i64::MIN, -1, 0, 1, 2, 37546, 4294967295, i64::MAX]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a0773696e7436347328ffffffffffffffffff01280128002802280428d4ca0428feffffff1f28feffffffffffffffff01")
+        );
+
+        // echo "id: \"no sint64s\"; numbers_sint64: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no sint64s")
+            .append_repeated_uint64(5, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0a6e6f2073696e74363473"));
+    }
+
+    #[test]
+    fn append_repeated_bool_works() {
+        // echo "id: \"bools\"; booleans: [false, false, true, true, false]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "bools")
+            .append_repeated_bool(8, &[false, false, true, true, false]);
+        assert_eq!(data.into_vec(), hex!("0a05626f6f6c7340004000400140014000"));
+
+        // echo "id: \"no bools\"; booleans: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no bools")
+            .append_repeated_uint64(8, &[]);
+        assert_eq!(data.into_vec(), hex!("0a086e6f20626f6f6c73"));
+    }
+
+    #[test]
+    fn append_repeated_string_works() {
+        // echo "id: \"strings\"; strings: [\"\", \"a\", \"bcde\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "strings")
+            .append_repeated_string(9, &["", "a", "bcde"]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a07737472696e67734a004a01614a0462636465")
+        );
+
+        // echo "id: \"no strings\"; strings: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no strings")
+            .append_repeated_string(9, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0a6e6f20737472696e6773"));
+    }
+
+    #[test]
+    fn append_repeated_bytes_works() {
+        // echo "id: \"bytess\"; bytess: [\"\", \"a\", \"bcde\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "bytess")
+            .append_repeated_bytes(10, &[b"", b"a", b"bcde"]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a066279746573735200520161520462636465")
+        );
+
+        // echo "id: \"no bytess\"; bytess: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no bytess")
+            .append_repeated_bytes(10, &[]);
+        assert_eq!(data.into_vec(), hex!("0a096e6f20627974657373"));
     }
 
     #[test]
