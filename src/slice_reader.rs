@@ -52,3 +52,45 @@ impl<'x> SliceReader<'x> {
         self.read(N).map(|consumed| consumed.try_into().unwrap())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_array_works() {
+        let original = vec![5u8, 7, 234, 2, 45, 0, 12, 32, 192];
+
+        // read 3
+        let mut reader = SliceReader::new(&original);
+        assert_eq!(reader.read_array::<3>().unwrap(), [5, 7, 234]);
+        assert_eq!(reader.len(), 6);
+
+        // read 2
+        let mut reader = SliceReader::new(&original);
+        assert_eq!(reader.read_array::<2>().unwrap(), [5, 7]);
+        assert_eq!(reader.len(), 7);
+
+        // read 1
+        let mut reader = SliceReader::new(&original);
+        assert_eq!(reader.read_array::<1>().unwrap(), [5]);
+        assert_eq!(reader.len(), 8);
+
+        // read 0
+        let mut reader = SliceReader::new(&original);
+        assert_eq!(reader.read_array::<0>().unwrap(), []);
+        assert_eq!(reader.len(), 9);
+
+        // read 10 (exceeds length)
+        let mut reader = SliceReader::new(&original);
+        assert!(reader.read_array::<10>().is_none());
+        assert_eq!(reader.len(), 9);
+
+        // consecutive reads (2, 3, 4 bytes)
+        let mut reader = SliceReader::new(&original);
+        assert_eq!(reader.read_array::<2>().unwrap(), [5, 7]);
+        assert_eq!(reader.read_array::<3>().unwrap(), [234, 2, 45]);
+        assert_eq!(reader.read_array::<4>().unwrap(), [0, 12, 32, 192]);
+        assert_eq!(reader.len(), 0);
+    }
+}
