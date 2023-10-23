@@ -173,6 +173,7 @@ impl Anybuf {
     /// Appends a repeated field of type string.
     ///
     /// Use this instead of multiple [`Anybuf::append_string`] to ensure "" values are not lost.
+    ///
     /// ## Example
     ///
     /// ```
