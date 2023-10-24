@@ -1,5 +1,8 @@
 # Anybuf
 
+[![anybuf on crates.io](https://img.shields.io/crates/v/anybuf.svg)](https://crates.io/crates/anybuf)
+[![Docs](https://docs.rs/anybuf/badge.svg)](https://docs.rs/anybuf)
+
 Anybuf is a minimal (like seriously), zero dependency protobuf encoder
 to encode anything.
 It is designed to create the `value` bytes of a protobuf `Any`, hence the name.
@@ -19,10 +22,10 @@ understand the API.
 
 - Varint fields (bool/uint32/uint64/sint32/sint64)
 - Variable length fields (string/bytes)
-- Repeated (bool/uint32/uint64/string/bytes)
+- Repeated (bool/uint32/uint64/string/bytes/messages)
 - Nested: Just append an `Anybuf` instance
 
-## Non supported
+## Not yet supported
 
 - Fixed length types
 - Packed encoding for repeated fields

@@ -9,10 +9,10 @@
 //! Supported:
 //! - Varint fields (bool/uint32/uint64/sint32/sint64)
 //! - Variable length fields (string/bytes)
-//! - Repeated (bool/uint32/uint64/string/bytes)
+//! - Repeated (bool/uint32/uint64/string/bytes/messages)
 //! - Nested: Just append an `Anybuf` instance
 //!
-//! Non supported:
+//! Not yet supported:
 //!
 //! - Fixed length types
 //! - Packed encoding for repeated fields
@@ -259,6 +259,36 @@ impl Anybuf {
             unsigned_varint_encode(value.len() as u64, &mut self.output);
             // value
             self.output.extend_from_slice(value);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type message.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_message`] to ensure empty values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // A repeated message at field number 11. This adds 3 elements, one of them is the default message.
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_message(11, &[
+    ///         &Anybuf::new().append_uint32(1, 1),
+    ///         &Anybuf::new(),
+    ///         &Anybuf::new().append_uint32(1, 3),
+    ///     ])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_message(mut self, field_number: u32, messages: &[&Anybuf]) -> Self {
+        for message in messages {
+            let data = message.as_bytes();
+            // tag
+            self.append_tag(field_number, WireType::Len);
+            // length
+            unsigned_varint_encode(data.len() as u64, &mut self.output);
+            // value
+            self.output.extend_from_slice(data);
         }
         self
     }
@@ -603,6 +633,38 @@ mod tests {
             .append_string(1, "no bytess")
             .append_repeated_bytes(10, &[]);
         assert_eq!(data.into_vec(), hex!("0a096e6f20627974657373"));
+    }
+
+    #[test]
+    fn append_repeated_message_works() {
+        // echo "messages: [{ number: 1}, { number: 2}, { number: 3}]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new().append_repeated_message(
+            11,
+            &[
+                &Anybuf::new().append_uint32(1, 1),
+                &Anybuf::new().append_uint32(1, 2),
+                &Anybuf::new().append_uint32(1, 3),
+            ],
+        );
+        assert_eq!(data.into_vec(), hex!("5a0208015a0208025a020803"));
+
+        // An empty message
+        // echo "messages: [{ number: 1}, { }, { number: 3}]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new().append_repeated_message(
+            11,
+            &[
+                &Anybuf::new().append_uint32(1, 1),
+                &Anybuf::new(),
+                &Anybuf::new().append_uint32(1, 3),
+            ],
+        );
+        assert_eq!(data.into_vec(), hex!("5a0208015a005a020803"));
+
+        // echo "id: \"no messages\"; messages: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no messages")
+            .append_repeated_message(11, &[]);
+        assert_eq!(data.into_vec(), hex!("0a0b6e6f206d65737361676573"));
     }
 
     #[test]
