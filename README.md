@@ -1,5 +1,8 @@
 # Anybuf
 
+[![anybuf on crates.io](https://img.shields.io/crates/v/anybuf.svg)](https://crates.io/crates/anybuf)
+[![Docs](https://docs.rs/anybuf/badge.svg)](https://docs.rs/anybuf)
+
 Anybuf is a minimal (like seriously), zero dependency protobuf encoder
 to encode anything.
 It is designed to create the `value` bytes of a protobuf `Any`, hence the name.
