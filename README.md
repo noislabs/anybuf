@@ -19,7 +19,7 @@ understand the API.
 
 - Varint fields (bool/uint32/uint64/sint32/sint64)
 - Variable length fields (string/bytes)
-- Repeated (bool/uint32/uint64/string/bytes)
+- Repeated (bool/uint32/uint64/string/bytes/messages)
 - Nested: Just append an `Anybuf` instance
 
 ## Non supported

@@ -23,4 +23,5 @@ message Collection {
   repeated bool booleans          =  8 [packed = false];
   repeated string strings         =  9 [packed = false];
   repeated bytes bytess           = 10 [packed = false];
+  repeated Room messages          = 11;
 }
