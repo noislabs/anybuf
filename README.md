@@ -22,7 +22,7 @@ understand the API.
 - Repeated (bool/uint32/uint64/string/bytes/messages)
 - Nested: Just append an `Anybuf` instance
 
-## Non supported
+## Not yet supported
 
 - Fixed length types
 - Packed encoding for repeated fields
