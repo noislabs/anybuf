@@ -488,31 +488,6 @@ mod tests {
     }
 
     #[test]
-    fn repeated_string_works() {
-        // two strings
-        let serialized = Anybuf::new()
-            .append_repeated_string(7, &["foo", "bar"])
-            .into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.repeated_string(7).unwrap(), &["foo", "bar"]);
-
-        // duplicates and empty values
-        let serialized = Anybuf::new()
-            .append_repeated_string(7, &["foo", "foo", "", "ok"])
-            .into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(
-            decoded.repeated_string(7).unwrap(),
-            &["foo", "foo", "", "ok"]
-        );
-
-        // empty list
-        let serialized = Anybuf::new().append_repeated_string(7, &[]).into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.repeated_string(7).unwrap(), Vec::<String>::new());
-    }
-
-    #[test]
     fn uint64_works() {
         let serialized = Anybuf::new()
             .append_uint64(1, 150)
@@ -566,5 +541,35 @@ mod tests {
         assert_eq!(decoded.bool(5), Some(true));
         assert_eq!(decoded.bool(6), Some(false));
         assert_eq!(decoded.bool(7), Some(false));
+    }
+
+    #[test]
+    fn repeated_string_works() {
+        // two strings
+        let serialized = Anybuf::new()
+            .append_repeated_string(7, &["foo", "bar"])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_string(7).unwrap(), &["foo", "bar"]);
+
+        // duplicates and empty values
+        let serialized = Anybuf::new()
+            .append_repeated_string(7, &["foo", "foo", "", "ok"])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(
+            decoded.repeated_string(7).unwrap(),
+            &["foo", "foo", "", "ok"]
+        );
+
+        // empty list
+        let serialized = Anybuf::new().append_repeated_string(7, &[]).into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_string(7).unwrap(), Vec::<String>::new());
+
+        // not serialized => default
+        let serialized = Anybuf::new().into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_string(1).unwrap(), Vec::<String>::new());
     }
 }
