@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::slice_reader::SliceReader;
+use crate::{slice_reader::SliceReader, varint::read_unsigned_varint};
 
 /// A minmal protobuf decoder.
 ///
@@ -285,25 +285,6 @@ impl<'a> Bufany<'a> {
     }
 }
 
-fn read_unsigned_varint(data: &mut SliceReader) -> Option<u64> {
-    let mut out = 0u64;
-    let mut byte_counter = 0;
-    loop {
-        let Some(byte) = data.read_one() else {
-            return None;
-        };
-        let value = (byte & 0x7f) as u64;
-        out += value << (byte_counter * 7);
-
-        byte_counter += 1;
-        if byte & 0x80 == 0 {
-            break;
-        }
-    }
-
-    Some(out)
-}
-
 /// A deserialized value
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value<'a> {
@@ -585,52 +566,5 @@ mod tests {
         assert_eq!(decoded.bool(5), Some(true));
         assert_eq!(decoded.bool(6), Some(false));
         assert_eq!(decoded.bool(7), Some(false));
-    }
-
-    #[test]
-    fn read_unsigned_varint_works() {
-        // tests from https://codeberg.org/ft/ufw/src/tag/v4.1.0/test/t-varint.c#L92-L101
-        {
-            let original = vec![0u8];
-            let mut reader = SliceReader::new(&original);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), 0);
-            assert_eq!(reader.len(), 0);
-
-            let original = vec![0x80, 0x01];
-            let mut reader = SliceReader::new(&original);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), 128);
-            assert_eq!(reader.len(), 0);
-
-            let original = vec![0xd2, 0x09];
-            let mut reader = SliceReader::new(&original);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), 1234);
-            assert_eq!(reader.len(), 0);
-
-            let original = vec![0xff, 0xff, 0xff, 0xff, 0x0f];
-            let mut reader = SliceReader::new(&original);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), u32::MAX as u64);
-            assert_eq!(reader.len(), 0);
-        }
-
-        // examples from https://github.com/multiformats/unsigned-varint
-        {
-            // two different representations of the same value
-            let mut reader = SliceReader::new(&[0x81, 0x00]);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), 1);
-            let mut reader = SliceReader::new(&[0x1]);
-            assert_eq!(read_unsigned_varint(&mut reader).unwrap(), 1);
-
-            for (expected, data) in [
-                (1, vec![0x01]),
-                (127, vec![0x7f]),
-                (128, vec![0x80, 0x01]),
-                (255, vec![0xff, 0x01]),
-                (300, vec![0xac, 0x02]),
-                (16384, vec![0x80, 0x80, 0x01]),
-            ] {
-                let mut reader = SliceReader::new(&data);
-                assert_eq!(read_unsigned_varint(&mut reader).unwrap(), expected);
-            }
-        }
     }
 }
