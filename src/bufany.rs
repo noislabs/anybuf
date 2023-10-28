@@ -26,7 +26,7 @@ use crate::slice_reader::SliceReader;
 /// assert_eq!(decoded.uint32(2), Some(38));
 /// assert_eq!(decoded.bytes(3), Some(vec![0xF0, 0x00]));
 /// assert_eq!(decoded.string(4), Some("valid utf8 string".to_string()));
-/// assert_eq!(decoded.string(5), None);
+/// assert_eq!(decoded.string(5), Some("".to_string()));
 /// ```
 #[derive(Debug)]
 pub struct Bufany<'a> {
@@ -90,7 +90,6 @@ impl<'a> Bufany<'a> {
     }
 
     /// Gets bytes from the given field number. This returns None if
-    /// - the field number does not exist
     /// - the value type is not variable length
     ///
     /// ## Example
@@ -101,20 +100,23 @@ impl<'a> Bufany<'a> {
     /// let serialized = Anybuf::new()
     ///     .append_uint64(1, 150)
     ///     .append_bytes(2, vec![0xF0, 0x00])
+    ///     .append_bytes(3, vec![])
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
-    /// assert_eq!(decoded.bytes(1), None);
+    /// assert_eq!(decoded.bytes(1), None); // wrong type
     /// assert_eq!(decoded.bytes(2), Some(vec![0xF0, 0x00]));
+    /// assert_eq!(decoded.bytes(3), Some(vec![])); // not serialized => default
+    /// assert_eq!(decoded.bytes(4), Some(vec![])); // not serialized => default
     /// ```
     pub fn bytes(&self, field_number: u32) -> Option<Vec<u8>> {
         match self.value_ref(field_number) {
             Some(Value::VariableLength(data)) => Some(data.to_vec()),
-            _ => None,
+            Some(_) => None, // wrong type
+            None => Some(Vec::new()),
         }
     }
 
     /// Gets bytes from the given field number. This returns None if
-    /// - the field number does not exist
     /// - the value type is not variable length
     ///
     /// ## Example
@@ -126,11 +128,14 @@ impl<'a> Bufany<'a> {
     ///     .append_uint64(1, 150)
     ///     .append_bytes(2, vec![0xF0, 0x00])
     ///     .append_string(3, "valid utf8 string")
+    ///     .append_string(4, "")
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
-    /// assert_eq!(decoded.string(1), None);
-    /// assert_eq!(decoded.string(2), None);
+    /// assert_eq!(decoded.string(1), None); // wrong type
+    /// assert_eq!(decoded.string(2), None); // invalid utf8
     /// assert_eq!(decoded.string(3), Some("valid utf8 string".to_string()));
+    /// assert_eq!(decoded.string(4), Some("".to_string())); // not serialized => default
+    /// assert_eq!(decoded.string(5), Some("".to_string())); // not serialized => default
     /// ```
     pub fn string(&self, field_number: u32) -> Option<String> {
         let bytes = self.bytes(field_number)?;
@@ -463,14 +468,31 @@ mod tests {
     }
 
     #[test]
+    fn bytes_works() {
+        let serialized = Anybuf::new()
+            .append_uint64(1, 150)
+            .append_bytes(2, vec![0xF0, 0x00])
+            .append_bytes(3, vec![])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.bytes(1), None); // wrong type
+        assert_eq!(decoded.bytes(2), Some(vec![0xF0, 0x00]));
+        assert_eq!(decoded.bytes(3), Some(vec![]));
+        assert_eq!(decoded.bytes(4), Some(vec![]));
+    }
+
+    #[test]
     fn string_works() {
         let serialized = Anybuf::new()
             .append_uint64(1, 150)
             .append_string(2, "blub")
+            .append_string(3, "")
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.string(1), None);
         assert_eq!(decoded.string(2), Some("blub".to_string()));
+        assert_eq!(decoded.string(3), Some("".to_string()));
+        assert_eq!(decoded.string(4), Some("".to_string()));
 
         // Last One Wins (https://protobuf.dev/programming-guides/encoding/#last-one-wins)
         let serialized = Anybuf::new()
@@ -482,17 +504,6 @@ mod tests {
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.string(1), None);
         assert_eq!(decoded.string(2), Some("three".to_string()));
-    }
-
-    #[test]
-    fn bytes_works() {
-        let serialized = Anybuf::new()
-            .append_uint64(1, 150)
-            .append_bytes(2, vec![0xF0, 0x00])
-            .into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.bytes(1), None);
-        assert_eq!(decoded.bytes(2), Some(vec![0xF0, 0x00]));
     }
 
     #[test]
