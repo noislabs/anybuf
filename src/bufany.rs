@@ -138,7 +138,6 @@ impl<'a> Bufany<'a> {
     }
 
     /// Gets a uint64 from the given field number. This returns None if
-    /// - the field number does not exist
     /// - the value type is not of type varint
     ///
     /// ## Example
@@ -149,23 +148,25 @@ impl<'a> Bufany<'a> {
     /// let serialized = Anybuf::new()
     ///     .append_uint64(1, 150)
     ///     .append_bytes(2, vec![0xF0, 0x00])
+    ///     .append_uint64(3, 0)
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
     /// assert_eq!(decoded.uint64(1), Some(150));
     /// assert_eq!(decoded.uint64(2), None);
-    /// assert_eq!(decoded.uint64(3), None);
+    /// assert_eq!(decoded.uint64(3), Some(0));
+    /// assert_eq!(decoded.uint64(4), Some(0));
     /// ```
     pub fn uint64(&self, field_number: u32) -> Option<u64> {
         match self.value_ref(field_number) {
             Some(Value::Varint(data)) => Some(*data),
-            _ => None,
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
         }
     }
 
     /// Gets a uint32 from the given field number. This returns None if
-    /// - the field number does not exist
     /// - the value type is not of type varint
-    /// - the value value exceeds the uint32 range
+    /// - the value exceeds the uint32 range
     ///
     /// ## Example
     ///
@@ -176,18 +177,56 @@ impl<'a> Bufany<'a> {
     ///     .append_uint32(1, 150)
     ///     .append_uint64(2, 17)
     ///     .append_uint64(3, 36028797018963970)
-    ///     .append_bytes(3, vec![0xF0, 0x00])
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .append_uint32(5, 0)
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
     /// assert_eq!(decoded.uint32(1), Some(150));
     /// assert_eq!(decoded.uint32(2), Some(17)); // works because on the wire we don't differentiate
     /// assert_eq!(decoded.uint32(3), None); // too large
     /// assert_eq!(decoded.uint32(4), None);
+    /// assert_eq!(decoded.uint32(5), Some(0));
     /// ```
     pub fn uint32(&self, field_number: u32) -> Option<u32> {
         match self.value_ref(field_number) {
             Some(Value::Varint(data)) => (*data).try_into().ok(),
-            _ => None,
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets a bool from the given field number. This returns None if
+    /// - the value type is not of type varint
+    /// - the value is not 0 or 1 range
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_uint32(1, 150)
+    ///     .append_uint64(2, 17)
+    ///     .append_uint64(3, 1)
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .append_bool(5, true)
+    ///     .append_bool(6, false)
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.bool(1), None); // too large
+    /// assert_eq!(decoded.bool(2), None); // too large
+    /// assert_eq!(decoded.bool(3), Some(true)); // 1 and true cannot be differentiated
+    /// assert_eq!(decoded.bool(4), None); // wrong type
+    /// assert_eq!(decoded.bool(5), Some(true));
+    /// assert_eq!(decoded.bool(6), Some(false));
+    /// ```
+    pub fn bool(&self, field_number: u32) -> Option<bool> {
+        match self.value_ref(field_number) {
+            Some(Value::Varint(1)) => Some(true),
+            Some(Value::Varint(0)) => Some(false),
+            Some(Value::Varint(_)) => None,
+            Some(_) => None,     // found but wrong type
+            None => Some(false), // Field not serialized, i.e. can be the default value
         }
     }
 
@@ -479,6 +518,62 @@ mod tests {
         let serialized = Anybuf::new().append_repeated_string(7, &[]).into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(decoded.repeated_string(7).unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn uint64_works() {
+        let serialized = Anybuf::new()
+            .append_uint64(1, 150)
+            .append_uint64(2, 17)
+            .append_uint64(3, 36028797018963970)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_uint64(5, 0)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.uint64(1), Some(150));
+        assert_eq!(decoded.uint64(2), Some(17));
+        assert_eq!(decoded.uint64(3), Some(36028797018963970));
+        assert_eq!(decoded.uint64(4), None); // wrong type
+        assert_eq!(decoded.uint64(5), Some(0));
+        assert_eq!(decoded.uint64(6), Some(0));
+    }
+
+    #[test]
+    fn uint32_works() {
+        let serialized = Anybuf::new()
+            .append_uint32(1, 150)
+            .append_uint64(2, 17)
+            .append_uint64(3, 36028797018963970)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_uint32(5, 0)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.uint32(1), Some(150));
+        assert_eq!(decoded.uint32(2), Some(17)); // works because on the wire we don't differentiate
+        assert_eq!(decoded.uint32(3), None); // too large
+        assert_eq!(decoded.uint32(4), None);
+        assert_eq!(decoded.uint32(5), Some(0));
+        assert_eq!(decoded.uint32(6), Some(0));
+    }
+
+    #[test]
+    fn bool_works() {
+        let serialized = Anybuf::new()
+            .append_uint32(1, 150)
+            .append_uint64(2, 17)
+            .append_uint64(3, 1)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_bool(5, true)
+            .append_bool(6, false)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.bool(1), None); // too large
+        assert_eq!(decoded.bool(2), None); // too large
+        assert_eq!(decoded.bool(3), Some(true)); // 1 and true cannot be differentiated
+        assert_eq!(decoded.bool(4), None); // wrong type
+        assert_eq!(decoded.bool(5), Some(true));
+        assert_eq!(decoded.bool(6), Some(false));
+        assert_eq!(decoded.bool(7), Some(false));
     }
 
     #[test]
