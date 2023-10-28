@@ -6,13 +6,13 @@
 //! - Field sorting
 //! - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
 //!
-//! Supported:
+//! ## Supported:
 //! - Varint fields (bool/uint32/uint64/sint32/sint64)
 //! - Variable length fields (string/bytes)
 //! - Repeated (bool/uint32/uint64/string/bytes/messages)
 //! - Nested: Just append an `Anybuf` instance
 //!
-//! Not yet supported:
+//! ## Not yet supported:
 //!
 //! - Fixed length types
 //! - Packed encoding for repeated fields
@@ -69,6 +69,17 @@ fn unsigned_varint_encode(mut n: u64, dest: &mut Vec<u8>) {
 
 impl Anybuf {
     /// Creates a new serializer.
+    ///
+    /// See [`Anybuf::append_message`] for how to created nested messages using new Anybuf instances.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Creates an empty document
+    /// let serialized = Anybuf::new().into_vec();
+    /// ```
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
@@ -89,12 +100,35 @@ impl Anybuf {
     }
 
     /// Appends a string field with the given field number.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // A string with field number 4 and 5
+    /// let b = String::from("hello, world");
+    /// let serialized = Anybuf::new()
+    ///     .append_string(4, "nice content")
+    ///     .append_string(5, b)
+    ///     .into_vec();
+    /// ```
     #[inline]
     pub fn append_string(self, field_number: u32, data: impl AsRef<str>) -> Self {
         self.append_bytes(field_number, data.as_ref().as_bytes())
     }
 
     /// Appends a uint64 field with the given field number.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // A uint64 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_uint64(4, 3)
+    ///     .append_uint64(5, u64::MAX)
+    ///     .into_vec();
+    /// ```
     pub fn append_uint64(mut self, field_number: u32, value: u64) -> Self {
         if value == 0 {
             return self;
@@ -105,12 +139,34 @@ impl Anybuf {
     }
 
     /// Appends a uint32 field with the given field number.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // A uint32 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_uint32(4, 3)
+    ///     .append_uint32(5, u32::MAX)
+    ///     .into_vec();
+    /// ```
     #[inline]
     pub fn append_uint32(self, field_number: u32, value: u32) -> Self {
         self.append_uint64(field_number, value.into())
     }
 
     /// Appends a bool field with the given field number.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // A boolean with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_bool(4, true)
+    ///     .append_bool(5, false)
+    ///     .into_vec();
+    /// ```
     #[inline]
     pub fn append_bool(self, field_number: u32, value: bool) -> Self {
         self.append_uint64(field_number, value.into())
@@ -169,7 +225,7 @@ impl Anybuf {
     /// # use anybuf::Anybuf;
     /// // Three signed ints with field number 4
     /// let serialized = Anybuf::new()
-    ///     .append_repeated_sint32(3, &[-30, 0, 17])
+    ///     .append_repeated_sint32(4, &[-30, 0, 17])
     ///     .into_vec();
     /// ```
     pub fn append_repeated_sint32(mut self, field_number: u32, data: &[i32]) -> Self {
@@ -204,6 +260,16 @@ impl Anybuf {
     /// Appends a repeated field of type bool.
     ///
     /// Use this instead of multiple [`Anybuf::append_bool`] to ensure false values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Some booleans with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bool(4, &[true, false, true, true, false])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_bool(mut self, field_number: u32, data: &[bool]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
