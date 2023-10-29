@@ -235,6 +235,41 @@ impl<'a> Bufany<'a> {
         }
     }
 
+    /// Gets repeated bytes from the given field number.
+    /// Returns None in case a wrong wire type was found.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let myvec = vec![0xF0u8, 0x00];
+    /// let serialized = Anybuf::new()
+    ///     .append_uint64(1, 150)
+    ///     .append_repeated_bytes(2, &[&myvec])
+    ///     .append_repeated_bytes(3, &[b"\x01\x02\x03", b"\x00"])
+    ///     .append_repeated_string(4, &["valid utf8 string", "hello"])
+    ///     .append_repeated_bytes(5, &[])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_bytes(2).unwrap(), &[&[0xF0, 0x00]]);
+    /// assert_eq!(decoded.repeated_bytes(3).unwrap(), [&[1u8, 2, 3] as &[u8], &[0]]);
+    /// assert_eq!(decoded.repeated_bytes(4).unwrap(), [b"valid utf8 string" as &[u8], b"hello"]);
+    /// assert_eq!(decoded.repeated_bytes(5).unwrap(), Vec::<Vec<u8>>::new());
+    /// assert_eq!(decoded.repeated_bytes(12).unwrap(), Vec::<Vec<u8>>::new());
+    /// ```
+    pub fn repeated_bytes(&self, field_number: u32) -> Option<Vec<Vec<u8>>> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::VariableLength(data) => out.push(data.to_vec()),
+                _ => return None, // Wrong type, we can't handle this
+            }
+        }
+        Some(out)
+    }
+
     /// Gets repeated string from the given field number.
     ///
     /// ## Example
@@ -541,6 +576,36 @@ mod tests {
         assert_eq!(decoded.bool(5), Some(true));
         assert_eq!(decoded.bool(6), Some(false));
         assert_eq!(decoded.bool(7), Some(false));
+    }
+
+    #[test]
+    fn repeated_bytes_works() {
+        let serialized = Anybuf::new()
+            .append_uint64(1, 150)
+            .append_repeated_bytes(2, &[vec![0xF0u8, 0x00].as_slice()])
+            .append_repeated_bytes(3, &[b"\x01\x02\x03", b"\x00", b"", b"blub"])
+            .append_repeated_string(4, &["valid utf8 string", "hello"])
+            .append_repeated_bytes(5, &[])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        // Wrong type
+        assert_eq!(decoded.repeated_bytes(1), None);
+        // One element
+        assert_eq!(decoded.repeated_bytes(2).unwrap(), [b"\xF0\0"]);
+        // Multiple elements
+        assert_eq!(
+            decoded.repeated_bytes(3).unwrap(),
+            [b"\x01\x02\x03" as &[u8], b"\x00", b"", b"blub"]
+        );
+        // String elements decoded as bytes
+        assert_eq!(
+            decoded.repeated_bytes(4).unwrap(),
+            [b"valid utf8 string" as &[u8], b"hello"]
+        );
+        // No elements
+        assert_eq!(decoded.repeated_bytes(5).unwrap(), Vec::<Vec<u8>>::new());
+        // not serialized => default
+        assert_eq!(decoded.repeated_bytes(85).unwrap(), Vec::<Vec<u8>>::new());
     }
 
     #[test]
