@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{slice_reader::SliceReader, varint::read_unsigned_varint};
+use crate::{
+    slice_reader::SliceReader,
+    varint::{from_zigzag32, from_zigzag64, read_unsigned_varint},
+};
 
 /// A minmal protobuf decoder.
 ///
@@ -231,6 +234,65 @@ impl<'a> Bufany<'a> {
             Some(Value::Varint(_)) => None,
             Some(_) => None,     // found but wrong type
             None => Some(false), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets a sint64 from the given field number.
+    /// This returns None if the value type is not of type varint.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_sint64(1, 150)
+    ///     .append_sint64(2, -534214672)
+    ///     .append_sint64(3, 0)
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.sint64(1), Some(150));
+    /// assert_eq!(decoded.sint64(2), Some(-534214672));
+    /// assert_eq!(decoded.sint64(3), Some(0));
+    /// assert_eq!(decoded.sint64(4), None);
+    /// assert_eq!(decoded.sint64(5), Some(0));
+    /// ```
+    pub fn sint64(&self, field_number: u32) -> Option<i64> {
+        match self.value_ref(field_number) {
+            Some(Value::Varint(data)) => Some(from_zigzag64(*data)),
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets a sint32 from the given field number.
+    /// This returns None if the value type is not of type varint
+    /// or the value exceeds the 32 bit range.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_sint32(1, 150)
+    ///     .append_sint32(2, -534214672)
+    ///     .append_sint32(3, 0)
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.sint32(1), Some(150));
+    /// assert_eq!(decoded.sint32(2), Some(-534214672));
+    /// assert_eq!(decoded.sint32(3), Some(0));
+    /// assert_eq!(decoded.sint32(4), None);
+    /// assert_eq!(decoded.sint32(5), Some(0));
+    /// ```
+    pub fn sint32(&self, field_number: u32) -> Option<i32> {
+        match self.value_ref(field_number) {
+            Some(Value::Varint(data)) => Some(from_zigzag32((*data).try_into().ok()?)),
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
         }
     }
 
@@ -576,6 +638,48 @@ mod tests {
         assert_eq!(decoded.bool(5), Some(true));
         assert_eq!(decoded.bool(6), Some(false));
         assert_eq!(decoded.bool(7), Some(false));
+    }
+
+    #[test]
+    fn sint64_works() {
+        let serialized = Anybuf::new()
+            .append_sint64(1, 150)
+            .append_sint64(2, -534214672)
+            .append_sint64(3, 0)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_sint64(5, i64::MIN)
+            .append_sint64(6, i64::MAX)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.sint64(1), Some(150));
+        assert_eq!(decoded.sint64(2), Some(-534214672));
+        assert_eq!(decoded.sint64(3), Some(0));
+        assert_eq!(decoded.sint64(4), None);
+        assert_eq!(decoded.sint64(5), Some(i64::MIN));
+        assert_eq!(decoded.sint64(6), Some(i64::MAX));
+        assert_eq!(decoded.sint64(85), Some(0)); // not serialized => default
+    }
+
+    #[test]
+    fn sint32_works() {
+        let serialized = Anybuf::new()
+            .append_sint32(1, 150)
+            .append_sint32(2, -534214672)
+            .append_sint32(3, 0)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_sint32(5, i32::MIN)
+            .append_sint32(6, i32::MAX)
+            .append_sint64(7, i32::MAX as i64 + 1)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.sint32(1), Some(150));
+        assert_eq!(decoded.sint32(2), Some(-534214672));
+        assert_eq!(decoded.sint32(3), Some(0));
+        assert_eq!(decoded.sint32(4), None);
+        assert_eq!(decoded.sint32(5), Some(i32::MIN));
+        assert_eq!(decoded.sint32(6), Some(i32::MAX));
+        assert_eq!(decoded.sint32(7), None); // value out of range
+        assert_eq!(decoded.sint32(85), Some(0)); // not serialized => default
     }
 
     #[test]
