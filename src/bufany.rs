@@ -50,7 +50,7 @@ pub enum BufanyError {
 }
 
 #[derive(Debug)]
-pub enum RepeatedError {
+pub enum RepeatedStringError {
     /// Found a value of the wrong wire type
     TypeMismatch,
     /// A variable length field did not contain valid UTF-8.
@@ -285,15 +285,16 @@ impl<'a> Bufany<'a> {
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
     /// assert_eq!(decoded.repeated_string(3).unwrap(), ["valid utf8 string".to_string(), "hello".to_string()]);
     /// ```
-    pub fn repeated_string(&self, field_number: u32) -> Result<Vec<String>, RepeatedError> {
+    pub fn repeated_string(&self, field_number: u32) -> Result<Vec<String>, RepeatedStringError> {
         let values = self.repeated_value_ref(field_number);
         let mut out = Vec::with_capacity(values.len());
         for value in values {
             match value {
                 Value::VariableLength(data) => out.push(
-                    String::from_utf8(data.to_vec()).map_err(|_e| RepeatedError::InvalidUtf8)?,
+                    String::from_utf8(data.to_vec())
+                        .map_err(|_e| RepeatedStringError::InvalidUtf8)?,
                 ),
-                _ => return Err(RepeatedError::TypeMismatch),
+                _ => return Err(RepeatedStringError::TypeMismatch),
             }
         }
         Ok(out)
@@ -610,31 +611,33 @@ mod tests {
 
     #[test]
     fn repeated_string_works() {
+        let serialized = Anybuf::new()
+            .append_repeated_sint32(1, &[1, 2, 3])
+            .append_repeated_string(2, &["foo", "bar"])
+            .append_repeated_string(3, &["foo", "foo", "", "ok"])
+            .append_repeated_string(4, &[])
+            .append_repeated_bytes(5, &[b"hello", b"world"])
+            .append_repeated_bytes(6, &[b"\xf0\x00"])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        // wrong type
+        let err = decoded.repeated_string(1).unwrap_err();
+        assert!(matches!(err, RepeatedStringError::TypeMismatch));
         // two strings
-        let serialized = Anybuf::new()
-            .append_repeated_string(7, &["foo", "bar"])
-            .into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.repeated_string(7).unwrap(), &["foo", "bar"]);
-
+        assert_eq!(decoded.repeated_string(2).unwrap(), &["foo", "bar"]);
         // duplicates and empty values
-        let serialized = Anybuf::new()
-            .append_repeated_string(7, &["foo", "foo", "", "ok"])
-            .into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
         assert_eq!(
-            decoded.repeated_string(7).unwrap(),
+            decoded.repeated_string(3).unwrap(),
             &["foo", "foo", "", "ok"]
         );
-
         // empty list
-        let serialized = Anybuf::new().append_repeated_string(7, &[]).into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.repeated_string(7).unwrap(), Vec::<String>::new());
-
+        assert_eq!(decoded.repeated_string(4).unwrap(), Vec::<String>::new());
+        // interprets repeated bytes as repeated string
+        assert_eq!(decoded.repeated_string(5).unwrap(), &["hello", "world"]);
+        // invalid-utf8 is rejected
+        let err = decoded.repeated_string(6).unwrap_err();
+        assert!(matches!(err, RepeatedStringError::InvalidUtf8));
         // not serialized => default
-        let serialized = Anybuf::new().into_vec();
-        let decoded = Bufany::deserialize(&serialized).unwrap();
-        assert_eq!(decoded.repeated_string(1).unwrap(), Vec::<String>::new());
+        assert_eq!(decoded.repeated_string(85).unwrap(), Vec::<String>::new());
     }
 }
