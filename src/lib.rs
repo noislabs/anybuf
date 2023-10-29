@@ -1,7 +1,16 @@
-//! A minimal (like seriously), zero dependency protobuf encoder.
+//! A minimal, zero dependency protobuf encoder and decoder to encode/decode anything.
+//! It is designed to create the `value` bytes of a protobuf `Any`, hence the name.
+//!
+//! Due to its low level design, anybuf allows you to do things wrong in many ways
+//! and you should have a solid understanding of how protobuf encoding works in
+//! general to better understand the API.
+//!
+//! The crate anybuf is split in two major components:
+//!
+//! - [`anybuf::Anybuf`][crate::Anybuf] is a protobuf encoder
+//! - [`anybuf::Bufany`][crate::Bufany] is a protobuf decoder
 //!
 //! ## Non goals
-//! - ~~Decoding~~ (Upcoming in <https://github.com/noislabs/anybuf/pull/2>)
 //! - protobuf 2 things
 //! - Field sorting
 //! - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
@@ -9,7 +18,7 @@
 //! ## Supported:
 //! - Varint fields (bool/uint32/uint64/sint32/sint64)
 //! - Variable length fields (string/bytes)
-//! - Repeated (bool/uint32/uint64/string/bytes/messages)
+//! - Repeated (bool/uint32/uint64/sint32/sint64/string/bytes/messages)
 //! - Nested: Just append an `Anybuf` instance
 //!
 //! ## Not yet supported:
@@ -18,10 +27,14 @@
 //! - Packed encoding for repeated fields
 //! - int32/int64
 
+mod bufany;
+mod slice_reader;
 mod varint;
 
+pub use bufany::{Bufany, BufanyError};
 use varint::{to_zigzag32, to_zigzag64};
 
+/// A minmal protobuf encoder.
 #[derive(Default)]
 pub struct Anybuf {
     output: Vec<u8>,
