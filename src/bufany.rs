@@ -59,13 +59,22 @@ pub enum RepeatedStringError {
     InvalidUtf8,
 }
 
+impl Bufany<'_> {
+    /// Creates an empty instance with the given lifetime.
+    ///
+    /// This is a private constructor. Users of the library should always use [`Bufany::deserialize`].
+    fn new<'a>() -> Bufany<'a> {
+        Bufany {
+            fields: Default::default(),
+            empty_vec: Default::default(),
+        }
+    }
+}
+
 impl<'a> Bufany<'a> {
     /// Creates a new serializer.
     pub fn deserialize(serialized: &'a [u8]) -> Result<Bufany<'a>, BufanyError> {
-        let mut out: Bufany<'a> = Bufany {
-            fields: Default::default(),
-            empty_vec: Default::default(),
-        };
+        let mut out = Bufany::new::<'a>();
 
         let mut reader = SliceReader::new(serialized);
 
@@ -79,9 +88,10 @@ impl<'a> Bufany<'a> {
             };
 
             // valid field numbers are between 1 and 536,870,911
-            let field_number: u32 = (tag >> 3)
-                .try_into()
-                .map_err(|_| BufanyError::InvalidFieldNumber)?;
+            let field_number = match tag >> 3 {
+                1..=536870911 => (tag >> 3) as u32,
+                _ => return Err(BufanyError::InvalidFieldNumber),
+            };
             let wire_type = (tag & 0x07) as u8;
 
             let value = read_value(&mut reader, wire_type)?;
@@ -293,6 +303,43 @@ impl<'a> Bufany<'a> {
             Some(Value::Varint(data)) => Some(from_zigzag32((*data).try_into().ok()?)),
             Some(_) => None, // found but wrong type
             None => Some(0), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets a nested message from the given field number.
+    /// This returns None if the value type is not of type variable length or the inner message cannot be decoded.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_message(
+    ///         1,
+    ///         &Anybuf::new()
+    ///             .append_bool(1, true)
+    ///             .append_string(2, "foo")
+    ///             .append_sint64(3, -37648762834),
+    ///     )
+    ///     .append_sint32(2, 150)
+    ///     .append_bytes(3, b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    ///
+    /// let nested = decoded.message(1).unwrap();
+    /// assert_eq!(nested.bool(1), Some(true));
+    /// assert_eq!(nested.string(2), Some("foo".to_string()));
+    /// assert_eq!(nested.sint64(3), Some(-37648762834));
+    ///
+    /// assert!(decoded.message(2).is_none()); // wrong type
+    /// assert!(decoded.message(3).is_none()); // not a valid proto message
+    /// ```
+    pub fn message(&'a self, field_number: u32) -> Option<Bufany<'a>> {
+        match self.value_ref(field_number) {
+            Some(Value::VariableLength(data)) => Some(Bufany::deserialize(data).ok()?),
+            Some(_) => None,                   // found but wrong type
+            None => Some(Bufany::new::<'a>()), // Field not serialized, i.e. can be the default value
         }
     }
 
@@ -680,6 +727,30 @@ mod tests {
         assert_eq!(decoded.sint32(6), Some(i32::MAX));
         assert_eq!(decoded.sint32(7), None); // value out of range
         assert_eq!(decoded.sint32(85), Some(0)); // not serialized => default
+    }
+
+    #[test]
+    fn message_works() {
+        let serialized = Anybuf::new()
+            .append_message(
+                1,
+                &Anybuf::new()
+                    .append_bool(1, true)
+                    .append_string(2, "foo")
+                    .append_sint64(3, -37648762834),
+            )
+            .append_sint32(2, 150)
+            .append_bytes(3, b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0")
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+
+        let nested = decoded.message(1).unwrap();
+        assert_eq!(nested.bool(1), Some(true));
+        assert_eq!(nested.string(2), Some("foo".to_string()));
+        assert_eq!(nested.sint64(3), Some(-37648762834));
+
+        assert!(decoded.message(2).is_none()); // wrong type
+        assert!(decoded.message(3).is_none()); // not a valid proto message
     }
 
     #[test]
