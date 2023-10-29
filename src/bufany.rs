@@ -46,7 +46,6 @@ pub enum BufanyError {
     ErrorDecodingVarint,
     /// The remaining data is not long enough to read the expected length
     UnexpectedEndOfData,
-    Other,
 }
 
 #[derive(Debug)]
