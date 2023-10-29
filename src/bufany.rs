@@ -434,6 +434,66 @@ impl<'a> Bufany<'a> {
         Some(out)
     }
 
+    /// Gets repeated sint64 from the given field number.
+    /// Returns None in case a wrong wire type was found.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_sint64(1, &[150, -150])
+    ///     .append_repeated_sint64(2, &[150, 0, i64::MAX])
+    ///     .append_string(3, "foo")
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_sint64(1), Some(vec![150, -150]));
+    /// assert_eq!(decoded.repeated_sint64(2), Some(vec![150, 0, i64::MAX]));
+    /// assert_eq!(decoded.repeated_sint64(3), None);
+    /// ```
+    pub fn repeated_sint64(&self, field_number: u32) -> Option<Vec<i64>> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::Varint(data) => out.push(from_zigzag64(*data)),
+                _ => return None, // Wrong type, we can't handle this
+            }
+        }
+        Some(out)
+    }
+
+    /// Gets repeated sint32 from the given field number.
+    /// Returns None in case a wrong wire type was found or the value exceeds the 32 bit range.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_sint32(1, &[150, -150])
+    ///     .append_repeated_sint32(2, &[150, 0, i32::MIN])
+    ///     .append_string(3, "foo")
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_sint32(1), Some(vec![150, -150]));
+    /// assert_eq!(decoded.repeated_sint32(2), Some(vec![150, 0, i32::MIN]));
+    /// assert_eq!(decoded.repeated_sint32(3), None);
+    /// ```
+    pub fn repeated_sint32(&self, field_number: u32) -> Option<Vec<i32>> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::Varint(data) => out.push(from_zigzag32((*data).try_into().ok()?)),
+                _ => return None, // Wrong type, we can't handle this
+            }
+        }
+        Some(out)
+    }
+
     /// Gets repeated bytes from the given field number.
     /// Returns None in case a wrong wire type was found.
     ///
@@ -888,6 +948,39 @@ mod tests {
         assert_eq!(decoded.repeated_bool(3), None);
         assert_eq!(decoded.repeated_bool(4), None); // Value exceeded 1 bit range
         assert_eq!(decoded.repeated_bool(85), Some(vec![])); // not serialized => default
+    }
+
+    #[test]
+    fn repeated_sint64_works() {
+        let serialized = Anybuf::new()
+            .append_repeated_sint64(1, &[150, -150])
+            .append_repeated_sint64(2, &[150, 0, i64::MIN, i64::MAX])
+            .append_string(3, "foo")
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_sint64(1), Some(vec![150, -150]));
+        assert_eq!(
+            decoded.repeated_sint64(2),
+            Some(vec![150, 0, i64::MIN, i64::MAX])
+        );
+        assert_eq!(decoded.repeated_sint64(3), None);
+        assert_eq!(decoded.repeated_sint64(85), Some(vec![])); // not serialized => default
+    }
+
+    #[test]
+    fn repeated_sint32_works() {
+        let serialized = Anybuf::new()
+            .append_repeated_sint32(1, &[150, -150])
+            .append_repeated_sint32(2, &[150, 0, i32::MIN])
+            .append_string(3, "foo")
+            .append_repeated_sint64(4, &[150, 0, i64::MAX])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_sint32(1), Some(vec![150, -150]));
+        assert_eq!(decoded.repeated_sint32(2), Some(vec![150, 0, i32::MIN]));
+        assert_eq!(decoded.repeated_sint32(3), None);
+        assert_eq!(decoded.repeated_sint32(4), None); // Value exceeded 32 bit range
+        assert_eq!(decoded.repeated_sint32(85), Some(vec![])); // not serialized => default
     }
 
     #[test]
