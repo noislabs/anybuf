@@ -24,23 +24,25 @@ pub fn from_zigzag64(n: u64) -> i64 {
     ((n >> 1) as i64) ^ (-((n & 1) as i64))
 }
 
+/// Reads an unsigned varint from the given slice reader.
+/// Returns `None` if the end of the slice is reached without completing the read or
+/// if the varint exceeds a length of 10 bytes.
 pub fn read_unsigned_varint(data: &mut SliceReader) -> Option<u64> {
     let mut out = 0u64;
-    let mut byte_counter = 0;
-    loop {
+
+    // If byte_counter becomes 10, the `value << (byte_counter * 7)` performs a
+    // left shift of 70 bits on a u64 which leads to an overflow panic.
+    for byte_counter in 0..10 {
         let Some(byte) = data.read_one() else {
             return None;
         };
         let value = (byte & 0x7f) as u64;
         out += value << (byte_counter * 7);
-
-        byte_counter += 1;
         if byte & 0x80 == 0 {
-            break;
+            return Some(out);
         }
     }
-
-    Some(out)
+    None
 }
 
 #[cfg(test)]
@@ -221,5 +223,44 @@ mod tests {
                 assert_eq!(read_unsigned_varint(&mut reader).unwrap(), expected);
             }
         }
+    }
+
+    #[test]
+    fn read_unsigned_varint_handles_early_end() {
+        // 3rd byte has a continuation bit but there is no more byte
+        let a: &[u8] = &[0b10000111, 0b10000000, 0b10000000];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)), None);
+
+        // empty
+        let a: &[u8] = &[];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)), None);
+    }
+
+    #[test]
+    fn read_unsigned_varint_is_length_limited() {
+        // 1 bytes
+        let a: &[u8] = &[0b00000111];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)).unwrap(), 7);
+        // 2 bytes
+        let a: &[u8] = &[0b10000111, 0b00000000];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)).unwrap(), 7);
+        // 3 bytes
+        let a: &[u8] = &[0b10000111, 0b10000000, 0b00000000];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)).unwrap(), 7);
+        // 4 bytes
+        let a: &[u8] = &[0b10000111, 0b10000000, 0b10000000, 0b00000000];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)).unwrap(), 7);
+        // 10 bytes
+        let a: &[u8] = &[
+            0b10000111, 0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000,
+            0b10000000, 0b10000000, 0b00000000,
+        ];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)).unwrap(), 7);
+        // 11 bytes (too long)
+        let a: &[u8] = &[
+            0b10000111, 0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b10000000,
+            0b10000000, 0b10000000, 0b10000000, 0b00000000,
+        ];
+        assert_eq!(read_unsigned_varint(&mut SliceReader::new(a)), None);
     }
 }
