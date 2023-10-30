@@ -185,20 +185,20 @@ impl Anybuf {
         self.append_uint64(field_number, value.into())
     }
 
-    /// Appends an sint32 field with the given field number.
-    ///
-    /// Please note that protobuf has two different 32 bit signed integer types
-    /// with different encodings: sint32 and int32. This only works for the former.
-    pub fn append_sint32(self, field_number: u32, value: i32) -> Self {
-        self.append_uint32(field_number, to_zigzag32(value))
-    }
-
     /// Appends an sint64 field with the given field number.
     ///
     /// Please note that protobuf has two different 64 bit signed integer types
     /// with different encodings: sint64 and int64. This only works for the former.
     pub fn append_sint64(self, field_number: u32, value: i64) -> Self {
         self.append_uint64(field_number, to_zigzag64(value))
+    }
+
+    /// Appends an sint32 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for the former.
+    pub fn append_sint32(self, field_number: u32, value: i32) -> Self {
+        self.append_uint32(field_number, to_zigzag32(value))
     }
 
     /// Appends a nested protobuf message with the given field number.
