@@ -10,6 +10,8 @@ message Room {
   uint64 size = 3;
   sint32 altitude = 4;
   sint64 temperature = 5;
+  int64 humidity = 6;
+  int32 pressure = 7;
 }
 
 message Collection {

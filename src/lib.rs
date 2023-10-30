@@ -201,6 +201,44 @@ impl Anybuf {
         self.append_uint32(field_number, to_zigzag32(value))
     }
 
+    /// Appends an int64 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for the later.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An int64 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_int64(4, -700)
+    ///     .append_int64(5, i64::MAX)
+    ///     .into_vec();
+    /// ```
+    pub fn append_int64(self, field_number: u32, value: i64) -> Self {
+        self.append_uint64(field_number, value as u64)
+    }
+
+    /// Appends an int32 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for the later.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An int32 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_int32(4, -700)
+    ///     .append_int32(5, i32::MAX)
+    ///     .into_vec();
+    /// ```
+    pub fn append_int32(self, field_number: u32, value: i32) -> Self {
+        self.append_uint64(field_number, value as i64 as u64)
+    }
+
     /// Appends a nested protobuf message with the given field number.
     pub fn append_message(self, field_number: u32, value: &Anybuf) -> Self {
         self.append_bytes(field_number, value.as_bytes())
@@ -519,6 +557,77 @@ mod tests {
             Anybuf::new().append_sint64(5, i64::MAX).into_vec(),
             hex!("28feffffffffffffffff01")
         );
+    }
+
+    #[test]
+    fn append_int64_works() {
+        // Example from https://protobuf.dev/programming-guides/encoding/#signed-ints
+        let data = Anybuf::new().append_int64(1, -2);
+        assert_eq!(
+            data.into_vec(),
+            [
+                0b00001000, 0b11111110, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111,
+                0b11111111, 0b11111111, 0b11111111, 0b00000001
+            ]
+        );
+
+        // for x in -9223372036854775808 -2147483649 -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647 2147483648 9223372036854775807; do echo "($x,hex!(\"$(echo "humidity: $x" | protoc --encode=Room *.proto | xxd -p)\").as_slice()),"; done
+        let tests: [(i64, &[u8]); 16] = [
+            (
+                -9223372036854775808,
+                hex!("3080808080808080808001").as_slice(),
+            ),
+            (-2147483649, hex!("30fffffffff7ffffffff01").as_slice()),
+            (-2147483648, hex!("3080808080f8ffffffff01").as_slice()),
+            (-735983, hex!("30918ad3ffffffffffff01").as_slice()),
+            (-456, hex!("30b8fcffffffffffffff01").as_slice()),
+            (-2, hex!("30feffffffffffffffff01").as_slice()),
+            (-1, hex!("30ffffffffffffffffff01").as_slice()),
+            (0, hex!("").as_slice()),
+            (1, hex!("3001").as_slice()),
+            (5, hex!("3005").as_slice()),
+            (21, hex!("3015").as_slice()),
+            (900, hex!("308407").as_slice()),
+            (8247598, hex!("30aeb2f703").as_slice()),
+            (2147483647, hex!("30ffffffff07").as_slice()),
+            (2147483648, hex!("308080808008").as_slice()),
+            (9223372036854775807, hex!("30ffffffffffffffff7f").as_slice()),
+        ];
+        for (value, expected) in tests {
+            let data = Anybuf::new().append_int64(6, value);
+            assert_eq!(data.into_vec(), expected, "Errored for value: {value}");
+        }
+    }
+
+    #[test]
+    fn append_int32_works() {
+        // For values >= 0, int32 and uint32 encoding is the same
+        // https://github.com/protocolbuffers/protobuf/blob/v24.4/java/core/src/main/java/com/google/protobuf/BinaryWriter.java#L1114-L1115
+        for x in [0, 1, 4, 70, 8979879, i32::MAX] {
+            let a = Anybuf::new().append_int32(1, x).into_vec();
+            let b = Anybuf::new().append_uint32(1, x as u32).into_vec();
+            assert_eq!(a, b);
+        }
+
+        // for x in -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647; do echo "($x,hex!(\"$(echo "pressure: $x" | protoc --encode=Room *.proto | xxd -p)\").as_slice()),"; done
+        let tests: [(i32, &[u8]); 12] = [
+            (-2147483648, hex!("3880808080f8ffffffff01").as_slice()),
+            (-735983, hex!("38918ad3ffffffffffff01").as_slice()),
+            (-456, hex!("38b8fcffffffffffffff01").as_slice()),
+            (-2, hex!("38feffffffffffffffff01").as_slice()),
+            (-1, hex!("38ffffffffffffffffff01").as_slice()),
+            (0, hex!("").as_slice()),
+            (1, hex!("3801").as_slice()),
+            (5, hex!("3805").as_slice()),
+            (21, hex!("3815").as_slice()),
+            (900, hex!("388407").as_slice()),
+            (8247598, hex!("38aeb2f703").as_slice()),
+            (2147483647, hex!("38ffffffff07").as_slice()),
+        ];
+        for (value, expected) in tests {
+            let data = Anybuf::new().append_int32(7, value);
+            assert_eq!(data.into_vec(), expected, "Errored for value: {value}");
+        }
     }
 
     #[test]
