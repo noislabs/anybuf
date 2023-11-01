@@ -250,6 +250,9 @@ impl<'a> Bufany<'a> {
     /// Gets a sint64 from the given field number.
     /// This returns None if the value type is not of type varint.
     ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for sint64.
+    ///
     /// ## Example
     ///
     /// ```
@@ -280,6 +283,9 @@ impl<'a> Bufany<'a> {
     /// This returns None if the value type is not of type varint
     /// or the value exceeds the 32 bit range.
     ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for sint32.
+    ///
     /// ## Example
     ///
     /// ```
@@ -301,6 +307,71 @@ impl<'a> Bufany<'a> {
     pub fn sint32(&self, field_number: u32) -> Option<i32> {
         match self.value_ref(field_number) {
             Some(Value::Varint(data)) => Some(from_zigzag32((*data).try_into().ok()?)),
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets an int64 from the given field number.
+    /// This returns None if the value type is not of type varint.
+    ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for int64.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_int64(1, 150)
+    ///     .append_int64(2, -534214672)
+    ///     .append_int64(3, 0)
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.int64(1), Some(150));
+    /// assert_eq!(decoded.int64(2), Some(-534214672));
+    /// assert_eq!(decoded.int64(3), Some(0));
+    /// assert_eq!(decoded.int64(4), None);
+    /// assert_eq!(decoded.int64(5), Some(0));
+    /// ```
+    pub fn int64(&self, field_number: u32) -> Option<i64> {
+        match self.value_ref(field_number) {
+            Some(Value::Varint(data)) => Some(*data as i64),
+            Some(_) => None, // found but wrong type
+            None => Some(0), // Field not serialized, i.e. can be the default value
+        }
+    }
+
+    /// Gets an int32 from the given field number.
+    /// This returns None if the value type is not of type varint
+    /// or the value exceeds the 32 bit range.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for int32.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_int32(1, 150)
+    ///     .append_int32(2, -534214672)
+    ///     .append_int32(3, 0)
+    ///     .append_bytes(4, vec![0xF0, 0x00])
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.int32(1), Some(150));
+    /// assert_eq!(decoded.int32(2), Some(-534214672));
+    /// assert_eq!(decoded.int32(3), Some(0));
+    /// assert_eq!(decoded.int32(4), None);
+    /// assert_eq!(decoded.int32(5), Some(0));
+    /// ```
+    pub fn int32(&self, field_number: u32) -> Option<i32> {
+        match self.value_ref(field_number) {
+            Some(Value::Varint(value)) => Some((*value as i64).try_into().ok()?),
             Some(_) => None, // found but wrong type
             None => Some(0), // Field not serialized, i.e. can be the default value
         }
@@ -878,6 +949,48 @@ mod tests {
         assert_eq!(decoded.sint32(6), Some(i32::MAX));
         assert_eq!(decoded.sint32(7), None); // value out of range
         assert_eq!(decoded.sint32(85), Some(0)); // not serialized => default
+    }
+
+    #[test]
+    fn int64_works() {
+        let serialized = Anybuf::new()
+            .append_int64(1, 150)
+            .append_int64(2, -534214672)
+            .append_int64(3, 0)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_int64(5, i64::MIN)
+            .append_int64(6, i64::MAX)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.int64(1), Some(150));
+        assert_eq!(decoded.int64(2), Some(-534214672));
+        assert_eq!(decoded.int64(3), Some(0));
+        assert_eq!(decoded.int64(4), None);
+        assert_eq!(decoded.int64(5), Some(i64::MIN));
+        assert_eq!(decoded.int64(6), Some(i64::MAX));
+        assert_eq!(decoded.int64(85), Some(0)); // not serialized => default
+    }
+
+    #[test]
+    fn int32_works() {
+        let serialized = Anybuf::new()
+            .append_int32(1, 150)
+            .append_int32(2, -534214672)
+            .append_int32(3, 0)
+            .append_bytes(4, vec![0xF0, 0x00])
+            .append_int32(5, i32::MIN)
+            .append_int32(6, i32::MAX)
+            .append_int64(7, i32::MAX as i64 + 1)
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.int32(1), Some(150));
+        assert_eq!(decoded.int32(2), Some(-534214672));
+        assert_eq!(decoded.int32(3), Some(0));
+        assert_eq!(decoded.int32(4), None);
+        assert_eq!(decoded.int32(5), Some(i32::MIN));
+        assert_eq!(decoded.int32(6), Some(i32::MAX));
+        assert_eq!(decoded.int32(7), None); // value out of range
+        assert_eq!(decoded.int32(85), Some(0)); // not serialized => default
     }
 
     #[test]
