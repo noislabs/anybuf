@@ -188,7 +188,18 @@ impl Anybuf {
     /// Appends an sint64 field with the given field number.
     ///
     /// Please note that protobuf has two different 64 bit signed integer types
-    /// with different encodings: sint64 and int64. This only works for the former.
+    /// with different encodings: sint64 and int64. This only works for sint64.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An sint64 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_sint64(4, -700)
+    ///     .append_sint64(5, i64::MAX)
+    ///     .into_vec();
+    /// ```
     pub fn append_sint64(self, field_number: u32, value: i64) -> Self {
         self.append_uint64(field_number, to_zigzag64(value))
     }
@@ -196,7 +207,18 @@ impl Anybuf {
     /// Appends an sint32 field with the given field number.
     ///
     /// Please note that protobuf has two different 32 bit signed integer types
-    /// with different encodings: sint32 and int32. This only works for the former.
+    /// with different encodings: sint32 and int32. This only works for sint32.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An sint32 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_sint32(4, -700)
+    ///     .append_sint32(5, i32::MAX)
+    ///     .into_vec();
+    /// ```
     pub fn append_sint32(self, field_number: u32, value: i32) -> Self {
         self.append_uint32(field_number, to_zigzag32(value))
     }
