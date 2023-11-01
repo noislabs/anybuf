@@ -247,6 +247,17 @@ impl Anybuf {
     /// Appends a repeated field of type uint32.
     ///
     /// Use this instead of multiple [`Anybuf::append_uint32`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // repeated uint32 fields with number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_uint32(4, &[0, 1, u32::MAX])
+    ///     .append_repeated_uint32(5, &[])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_uint32(mut self, field_number: u32, data: &[u32]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -258,6 +269,17 @@ impl Anybuf {
     /// Appends a repeated field of type uint64.
     ///
     /// Use this instead of multiple [`Anybuf::append_uint64`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // repeated uint64 fields with number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_uint64(4, &[0, 1, u64::MAX])
+    ///     .append_repeated_uint64(5, &[])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_uint64(mut self, field_number: u32, data: &[u64]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
