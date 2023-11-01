@@ -185,20 +185,80 @@ impl Anybuf {
         self.append_uint64(field_number, value.into())
     }
 
+    /// Appends an sint64 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for sint64.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An sint64 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_sint64(4, -700)
+    ///     .append_sint64(5, i64::MAX)
+    ///     .into_vec();
+    /// ```
+    pub fn append_sint64(self, field_number: u32, value: i64) -> Self {
+        self.append_uint64(field_number, to_zigzag64(value))
+    }
+
     /// Appends an sint32 field with the given field number.
     ///
     /// Please note that protobuf has two different 32 bit signed integer types
-    /// with different encodings: sint32 and int32. This only works for the former.
+    /// with different encodings: sint32 and int32. This only works for sint32.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An sint32 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_sint32(4, -700)
+    ///     .append_sint32(5, i32::MAX)
+    ///     .into_vec();
+    /// ```
     pub fn append_sint32(self, field_number: u32, value: i32) -> Self {
         self.append_uint32(field_number, to_zigzag32(value))
     }
 
-    /// Appends an sint64 field with the given field number.
+    /// Appends an int64 field with the given field number.
     ///
     /// Please note that protobuf has two different 64 bit signed integer types
-    /// with different encodings: sint64 and int64. This only works for the former.
-    pub fn append_sint64(self, field_number: u32, value: i64) -> Self {
-        self.append_uint64(field_number, to_zigzag64(value))
+    /// with different encodings: sint64 and int64. This only works for the later.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An int64 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_int64(4, -700)
+    ///     .append_int64(5, i64::MAX)
+    ///     .into_vec();
+    /// ```
+    pub fn append_int64(self, field_number: u32, value: i64) -> Self {
+        self.append_uint64(field_number, value as u64)
+    }
+
+    /// Appends an int32 field with the given field number.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for the later.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // An int32 with field number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_int32(4, -700)
+    ///     .append_int32(5, i32::MAX)
+    ///     .into_vec();
+    /// ```
+    pub fn append_int32(self, field_number: u32, value: i32) -> Self {
+        self.append_uint64(field_number, value as i64 as u64)
     }
 
     /// Appends a nested protobuf message with the given field number.
@@ -209,6 +269,17 @@ impl Anybuf {
     /// Appends a repeated field of type uint32.
     ///
     /// Use this instead of multiple [`Anybuf::append_uint32`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // repeated uint32 fields with number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_uint32(4, &[0, 1, u32::MAX])
+    ///     .append_repeated_uint32(5, &[])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_uint32(mut self, field_number: u32, data: &[u32]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -220,6 +291,17 @@ impl Anybuf {
     /// Appends a repeated field of type uint64.
     ///
     /// Use this instead of multiple [`Anybuf::append_uint64`] to ensure 0 values are not lost.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // repeated uint64 fields with number 4 and 5
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_uint64(4, &[0, 1, u64::MAX])
+    ///     .append_repeated_uint64(5, &[])
+    ///     .into_vec();
+    /// ```
     pub fn append_repeated_uint64(mut self, field_number: u32, data: &[u64]) -> Self {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
@@ -231,6 +313,9 @@ impl Anybuf {
     /// Appends a repeated field of type sint32.
     ///
     /// Use this instead of multiple [`Anybuf::append_sint32`] to ensure 0 values are not lost.
+    ///
+    /// Please note that int32 and sint32 are two different signed integer types. This encodes
+    /// only correctly for sint32.
     ///
     /// ## Example
     ///
@@ -252,6 +337,9 @@ impl Anybuf {
     /// Appends a repeated field of type sint64.
     ///
     /// Use this instead of multiple [`Anybuf::append_sint64`] to ensure 0 values are not lost.
+    ///
+    /// Please note that int64 and sint64 are two different signed integer types. This encodes
+    /// only correctly for sint64.
     ///
     /// ## Example
     ///
@@ -287,6 +375,54 @@ impl Anybuf {
         for value in data {
             self.append_tag(field_number, WireType::Varint);
             unsigned_varint_encode((*value).into(), &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type int32.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_int32`] to ensure 0 values are not lost.
+    ///
+    /// Please note that int32 and sint32 are two different signed integer types. This encodes
+    /// only correctly for int32.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Three signed ints with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_sint32(4, &[-30, 0, 17])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_int32(mut self, field_number: u32, data: &[i32]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode(*value as i64 as u64, &mut self.output);
+        }
+        self
+    }
+
+    /// Appends a repeated field of type sint64.
+    ///
+    /// Use this instead of multiple [`Anybuf::append_sint64`] to ensure 0 values are not lost.
+    ///
+    /// Please note that int64 and sint64 are two different signed integer types. This encodes
+    /// only correctly for int64.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use anybuf::Anybuf;
+    /// // Three signed ints with field number 4
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_int64(4, &[-30, 0, 17])
+    ///     .into_vec();
+    /// ```
+    pub fn append_repeated_int64(mut self, field_number: u32, data: &[i64]) -> Self {
+        for value in data {
+            self.append_tag(field_number, WireType::Varint);
+            unsigned_varint_encode(*value as u64, &mut self.output);
         }
         self
     }
@@ -522,6 +658,77 @@ mod tests {
     }
 
     #[test]
+    fn append_int64_works() {
+        // Example from https://protobuf.dev/programming-guides/encoding/#signed-ints
+        let data = Anybuf::new().append_int64(1, -2);
+        assert_eq!(
+            data.into_vec(),
+            [
+                0b00001000, 0b11111110, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111,
+                0b11111111, 0b11111111, 0b11111111, 0b00000001
+            ]
+        );
+
+        // for x in -9223372036854775808 -2147483649 -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647 2147483648 9223372036854775807; do echo "($x,hex!(\"$(echo "humidity: $x" | protoc --encode=Room *.proto | xxd -p)\").as_slice()),"; done
+        let tests: [(i64, &[u8]); 16] = [
+            (
+                -9223372036854775808,
+                hex!("3080808080808080808001").as_slice(),
+            ),
+            (-2147483649, hex!("30fffffffff7ffffffff01").as_slice()),
+            (-2147483648, hex!("3080808080f8ffffffff01").as_slice()),
+            (-735983, hex!("30918ad3ffffffffffff01").as_slice()),
+            (-456, hex!("30b8fcffffffffffffff01").as_slice()),
+            (-2, hex!("30feffffffffffffffff01").as_slice()),
+            (-1, hex!("30ffffffffffffffffff01").as_slice()),
+            (0, hex!("").as_slice()),
+            (1, hex!("3001").as_slice()),
+            (5, hex!("3005").as_slice()),
+            (21, hex!("3015").as_slice()),
+            (900, hex!("308407").as_slice()),
+            (8247598, hex!("30aeb2f703").as_slice()),
+            (2147483647, hex!("30ffffffff07").as_slice()),
+            (2147483648, hex!("308080808008").as_slice()),
+            (9223372036854775807, hex!("30ffffffffffffffff7f").as_slice()),
+        ];
+        for (value, expected) in tests {
+            let data = Anybuf::new().append_int64(6, value);
+            assert_eq!(data.into_vec(), expected, "Errored for value: {value}");
+        }
+    }
+
+    #[test]
+    fn append_int32_works() {
+        // For values >= 0, int32 and uint32 encoding is the same
+        // https://github.com/protocolbuffers/protobuf/blob/v24.4/java/core/src/main/java/com/google/protobuf/BinaryWriter.java#L1114-L1115
+        for x in [0, 1, 4, 70, 8979879, i32::MAX] {
+            let a = Anybuf::new().append_int32(1, x).into_vec();
+            let b = Anybuf::new().append_uint32(1, x as u32).into_vec();
+            assert_eq!(a, b);
+        }
+
+        // for x in -2147483648 -735983 -456 -2 -1 0 1 5 21 900 8247598 2147483647; do echo "($x,hex!(\"$(echo "pressure: $x" | protoc --encode=Room *.proto | xxd -p)\").as_slice()),"; done
+        let tests: [(i32, &[u8]); 12] = [
+            (-2147483648, hex!("3880808080f8ffffffff01").as_slice()),
+            (-735983, hex!("38918ad3ffffffffffff01").as_slice()),
+            (-456, hex!("38b8fcffffffffffffff01").as_slice()),
+            (-2, hex!("38feffffffffffffffff01").as_slice()),
+            (-1, hex!("38ffffffffffffffffff01").as_slice()),
+            (0, hex!("").as_slice()),
+            (1, hex!("3801").as_slice()),
+            (5, hex!("3805").as_slice()),
+            (21, hex!("3815").as_slice()),
+            (900, hex!("388407").as_slice()),
+            (8247598, hex!("38aeb2f703").as_slice()),
+            (2147483647, hex!("38ffffffff07").as_slice()),
+        ];
+        for (value, expected) in tests {
+            let data = Anybuf::new().append_int32(7, value);
+            assert_eq!(data.into_vec(), expected, "Errored for value: {value}");
+        }
+    }
+
+    #[test]
     fn append_bool_works() {
         // echo "on: true" | protoc --encode=Lights *.proto | hexdump -C
         let data = Anybuf::new().append_bool(3, true);
@@ -676,6 +883,42 @@ mod tests {
             .append_string(1, "no bools")
             .append_repeated_uint64(8, &[]);
         assert_eq!(data.into_vec(), hex!("0a086e6f20626f6f6c73"));
+    }
+
+    #[test]
+    fn append_repeated_int32_works() {
+        // echo "id: \"int32s\"; numbers_int32: [-2147483648, -1, 0, 1, 2, 37546, 2147483647]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "int32s")
+            .append_repeated_int32(6, &[i32::MIN, -1, 0, 1, 2, 37546, i32::MAX]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a06696e743332733080808080f8ffffffff0130ffffffffffffffffff0130003001300230aaa50230ffffffff07")
+        );
+
+        // echo "id: \"no int32s\"; numbers_int32: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no int32s")
+            .append_repeated_int32(6, &[]);
+        assert_eq!(data.into_vec(), hex!("0a096e6f20696e74333273"));
+    }
+
+    #[test]
+    fn append_repeated_int64_works() {
+        // echo "id: \"int64s\"; numbers_int64: [-9223372036854775808, -1, 0, 1, 2, 37546, 4294967295, 9223372036854775807]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "int64s")
+            .append_repeated_int64(7, &[i64::MIN, -1, 0, 1, 2, 37546, 4294967295, i64::MAX]);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a06696e74363473388080808080808080800138ffffffffffffffffff0138003801380238aaa50238ffffffff0f38ffffffffffffffff7f")
+        );
+
+        // echo "id: \"no int64s\"; numbers_int64: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new()
+            .append_string(1, "no int64s")
+            .append_repeated_int64(7, &[]);
+        assert_eq!(data.into_vec(), hex!("0a096e6f20696e74363473"));
     }
 
     #[test]
