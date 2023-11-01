@@ -23,16 +23,16 @@ The crate anybuf is split in two major components:
 
 ## Supported:
 
-- Varint fields (bool/uint32/uint64/sint32/sint64)
+- Varint fields (bool/uint32/uint64/sint32/sint64/int32/int64)
 - Variable length fields (string/bytes)
-- Repeated (bool/uint32/uint64/sint32/sint64/string/bytes/messages)
-- Nested: Just append an `Anybuf` instance
+- Nested messages: Just append an `Anybuf` instance
+- Repeated (bool/uint32/uint64/sint32/sint64/int32/int64/string/bytes/messages)
 
 ## Not yet supported
 
 - Fixed length types
 - Packed encoding for repeated fields
-- int32/int64
+- Maps support (but you can use the equivalent [encoding via repeated messages](https://protobuf.dev/programming-guides/encoding/#maps))
 
 ## How to use it
 
