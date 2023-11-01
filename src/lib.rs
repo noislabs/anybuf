@@ -15,14 +15,13 @@
 //! - Field sorting
 //! - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
 //!
-//! ## Supported:
+//! ## Supported
 //! - Varint fields (bool/uint32/uint64/sint32/sint64/int32/int64)
 //! - Variable length fields (string/bytes)
 //! - Nested messages: Just append an `Anybuf` instance
 //! - Repeated (bool/uint32/uint64/sint32/sint64/int32/int64/string/bytes/messages)
 //!
-//! ## Not yet supported:
-//!
+//! ## Not yet supported
 //! - Fixed length types
 //! - Packed encoding for repeated fields
 //! - Maps support (but you can use the equivalent [encoding via repeated messages](https://protobuf.dev/programming-guides/encoding/#maps))

@@ -21,7 +21,7 @@ The crate anybuf is split in two major components:
 - Field sorting
 - Groups support (deprecated, see <https://protobuf.dev/programming-guides/proto2/#groups>)
 
-## Supported:
+## Supported
 
 - Varint fields (bool/uint32/uint64/sint32/sint64/int32/int64)
 - Variable length fields (string/bytes)
