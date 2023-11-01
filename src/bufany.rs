@@ -508,6 +508,9 @@ impl<'a> Bufany<'a> {
     /// Gets repeated sint64 from the given field number.
     /// Returns None in case a wrong wire type was found.
     ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for sint64.
+    ///
     /// ## Example
     ///
     /// ```
@@ -538,6 +541,9 @@ impl<'a> Bufany<'a> {
     /// Gets repeated sint32 from the given field number.
     /// Returns None in case a wrong wire type was found or the value exceeds the 32 bit range.
     ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for sint32.
+    ///
     /// ## Example
     ///
     /// ```
@@ -559,6 +565,72 @@ impl<'a> Bufany<'a> {
         for value in values {
             match value {
                 Value::Varint(data) => out.push(from_zigzag32((*data).try_into().ok()?)),
+                _ => return None, // Wrong type, we can't handle this
+            }
+        }
+        Some(out)
+    }
+
+    /// Gets repeated int64 from the given field number.
+    /// Returns None in case a wrong wire type was found.
+    ///
+    /// Please note that protobuf has two different 64 bit signed integer types
+    /// with different encodings: sint64 and int64. This only works for int64.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_int64(1, &[150, -150])
+    ///     .append_repeated_int64(2, &[150, 0, i64::MAX])
+    ///     .append_string(3, "foo")
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_int64(1), Some(vec![150, -150]));
+    /// assert_eq!(decoded.repeated_int64(2), Some(vec![150, 0, i64::MAX]));
+    /// assert_eq!(decoded.repeated_int64(3), None);
+    /// ```
+    pub fn repeated_int64(&self, field_number: u32) -> Option<Vec<i64>> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::Varint(data) => out.push(*data as i64),
+                _ => return None, // Wrong type, we can't handle this
+            }
+        }
+        Some(out)
+    }
+
+    /// Gets repeated sint32 from the given field number.
+    /// Returns None in case a wrong wire type was found or the value exceeds the 32 bit range.
+    ///
+    /// Please note that protobuf has two different 32 bit signed integer types
+    /// with different encodings: sint32 and int32. This only works for int32.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use anybuf::{Anybuf, Bufany};
+    ///
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_int32(1, &[150, -150])
+    ///     .append_repeated_int32(2, &[150, 0, i32::MIN])
+    ///     .append_string(3, "foo")
+    ///     .into_vec();
+    /// let decoded = Bufany::deserialize(&serialized).unwrap();
+    /// assert_eq!(decoded.repeated_int32(1), Some(vec![150, -150]));
+    /// assert_eq!(decoded.repeated_int32(2), Some(vec![150, 0, i32::MIN]));
+    /// assert_eq!(decoded.repeated_int32(3), None);
+    /// ```
+    pub fn repeated_int32(&self, field_number: u32) -> Option<Vec<i32>> {
+        let values = self.repeated_value_ref(field_number);
+        let mut out = Vec::with_capacity(values.len());
+        for value in values {
+            match value {
+                Value::Varint(data) => out.push((*data as i64).try_into().ok()?),
                 _ => return None, // Wrong type, we can't handle this
             }
         }
@@ -1094,6 +1166,39 @@ mod tests {
         assert_eq!(decoded.repeated_sint32(3), None);
         assert_eq!(decoded.repeated_sint32(4), None); // Value exceeded 32 bit range
         assert_eq!(decoded.repeated_sint32(85), Some(vec![])); // not serialized => default
+    }
+
+    #[test]
+    fn repeated_int64_works() {
+        let serialized = Anybuf::new()
+            .append_repeated_int64(1, &[150, -150])
+            .append_repeated_int64(2, &[150, 0, i64::MIN, i64::MAX])
+            .append_string(3, "foo")
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_int64(1), Some(vec![150, -150]));
+        assert_eq!(
+            decoded.repeated_int64(2),
+            Some(vec![150, 0, i64::MIN, i64::MAX])
+        );
+        assert_eq!(decoded.repeated_int64(3), None);
+        assert_eq!(decoded.repeated_int64(85), Some(vec![])); // not serialized => default
+    }
+
+    #[test]
+    fn repeated_int32_works() {
+        let serialized = Anybuf::new()
+            .append_repeated_int32(1, &[150, -150])
+            .append_repeated_int32(2, &[150, 0, i32::MIN])
+            .append_string(3, "foo")
+            .append_repeated_int64(4, &[150, 0, i64::MAX])
+            .into_vec();
+        let decoded = Bufany::deserialize(&serialized).unwrap();
+        assert_eq!(decoded.repeated_int32(1), Some(vec![150, -150]));
+        assert_eq!(decoded.repeated_int32(2), Some(vec![150, 0, i32::MIN]));
+        assert_eq!(decoded.repeated_int32(3), None);
+        assert_eq!(decoded.repeated_int32(4), None); // Value exceeded 32 bit range
+        assert_eq!(decoded.repeated_int32(85), Some(vec![])); // not serialized => default
     }
 
     #[test]
