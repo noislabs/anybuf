@@ -386,8 +386,9 @@ impl Anybuf {
     ///     .append_repeated_string(4, &["", "Caro", &name])
     ///     .into_vec();
     /// ```
-    pub fn append_repeated_string(mut self, field_number: u32, data: &[&str]) -> Self {
+    pub fn append_repeated_string<S: AsRef<str>>(mut self, field_number: u32, data: &[S]) -> Self {
         for value in data {
+            let value = value.as_ref();
             self.append_tag(field_number, WireType::Len);
             unsigned_varint_encode(value.len() as u64, &mut self.output);
             self.output.extend_from_slice(value.as_bytes());
@@ -407,11 +408,12 @@ impl Anybuf {
     ///
     /// // Three bytes fields with field number 5
     /// let serialized = Anybuf::new()
-    ///     .append_repeated_bytes(5, &[b"", b"abcd", &blob])
+    ///     .append_repeated_bytes::<&[u8]>(5, &[b"", b"abcd", &blob])
     ///     .into_vec();
     /// ```
-    pub fn append_repeated_bytes(mut self, field_number: u32, data: &[&[u8]]) -> Self {
+    pub fn append_repeated_bytes<B: AsRef<[u8]>>(mut self, field_number: u32, data: &[B]) -> Self {
         for value in data {
+            let value = value.as_ref();
             // tag
             self.append_tag(field_number, WireType::Len);
             // length
@@ -893,8 +895,19 @@ mod tests {
         // echo "id: \"no strings\"; strings: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "no strings")
-            .append_repeated_string(9, &[]);
+            .append_repeated_string::<&str>(9, &[]);
         assert_eq!(data.into_vec(), hex!("0a0a6e6f20737472696e6773"));
+
+        // vector of Strings
+        // echo "id: \"strings\"; strings: [\"a\", \"b\", \"c\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let owned = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let data = Anybuf::new()
+            .append_string(1, "strings")
+            .append_repeated_string(9, &owned);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a07737472696e67734a01614a01624a0163")
+        );
     }
 
     #[test]
@@ -902,7 +915,7 @@ mod tests {
         // echo "id: \"bytess\"; bytess: [\"\", \"a\", \"bcde\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "bytess")
-            .append_repeated_bytes(10, &[b"", b"a", b"bcde"]);
+            .append_repeated_bytes::<&[u8]>(10, &[b"", b"a", b"bcde"]);
         assert_eq!(
             data.into_vec(),
             hex!("0a066279746573735200520161520462636465")
@@ -911,8 +924,20 @@ mod tests {
         // echo "id: \"no bytess\"; bytess: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "no bytess")
-            .append_repeated_bytes(10, &[]);
+            .append_repeated_bytes::<&[u8]>(10, &[]);
         assert_eq!(data.into_vec(), hex!("0a096e6f20627974657373"));
+
+        // vector of bytes
+        // echo "id: \"bytess\"; bytess: [\"c\", \"b\", \"a\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let owned = vec![
+            "c".to_string().into_bytes(),
+            "b".to_string().into_bytes(),
+            "a".to_string().into_bytes(),
+        ];
+        let data = Anybuf::new()
+            .append_string(1, "bytess")
+            .append_repeated_bytes(10, &owned);
+        assert_eq!(data.into_vec(), hex!("0a06627974657373520163520162520161"));
     }
 
     #[test]
