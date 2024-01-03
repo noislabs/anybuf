@@ -375,15 +375,35 @@ impl Anybuf {
     ///
     /// Use this instead of multiple [`Anybuf::append_string`] to ensure "" values are not lost.
     ///
+    /// The generic type `S` is the type of a single element in the input slice. This
+    /// is typically something like `&str` or `String`.
+    ///
     /// ## Example
     ///
     /// ```
     /// # use anybuf::Anybuf;
     /// let name = "Bono".to_string();
     ///
-    /// // Three string fields with field number 4
+    /// // Three string fields with field number 4, slice of &str
     /// let serialized = Anybuf::new()
     ///     .append_repeated_string(4, &["", "Caro", &name])
+    ///     .into_vec();
+    ///
+    /// // Works with String too
+    /// let owned: Vec<String> = vec![
+    ///     "green".to_string(),
+    ///     "orange".to_string(),
+    /// ];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &owned)
+    ///     .into_vec();
+    ///
+    /// // Or array of constant values
+    /// const A: &str = "Alice";
+    /// const B: &str = "Bob";
+    /// const ARRAY: [&str; 2] = [A, B];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &ARRAY)
     ///     .into_vec();
     /// ```
     pub fn append_repeated_string<S: AsRef<str>>(mut self, field_number: u32, data: &[S]) -> Self {
@@ -400,15 +420,36 @@ impl Anybuf {
     ///
     /// Use this instead of multiple [`Anybuf::append_bytes`] to ensure empty values are not lost.
     ///
+    /// The generic type `B` is the type of a single element in the input slice. This
+    /// is typically something like `&[u8]`, `Vec<u8>` but also `&str` and `String` work.
+    ///
     /// ## Example
     ///
     /// ```
     /// # use anybuf::Anybuf;
     /// let blob = vec![4u8; 75];
     ///
-    /// // Three bytes fields with field number 5
+    /// // Three bytes fields with field number 5, slice of slices
     /// let serialized = Anybuf::new()
-    ///     .append_repeated_bytes::<&[u8]>(5, &[b"", b"abcd", &blob])
+    ///     .append_repeated_bytes(5, &[blob.as_slice(), b"", b"abcd"])
+    ///     .into_vec();
+    ///
+    /// // Works with Vec<u8> elements too
+    /// let owned: Vec<Vec<u8>> = vec![
+    ///     vec![1u8; 10],
+    ///     vec![2u8; 10],
+    ///     vec![3u8; 10],
+    /// ];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &owned)
+    ///     .into_vec();
+    ///
+    /// // Or array of constant values
+    /// const A: &[u8] = b"Alice";
+    /// const B: &[u8] = b"Bob";
+    /// const ARRAY: [&[u8]; 2] = [A, B];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &ARRAY)
     ///     .into_vec();
     /// ```
     pub fn append_repeated_bytes<B: AsRef<[u8]>>(mut self, field_number: u32, data: &[B]) -> Self {
