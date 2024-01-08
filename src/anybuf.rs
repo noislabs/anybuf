@@ -426,6 +426,9 @@ impl Anybuf {
     ///
     /// Use this instead of multiple [`Anybuf::append_message`] to ensure empty values are not lost.
     ///
+    /// The generic type `M` is the type of a single element in the input slice. This
+    /// is typically `&Anybuf` or `Anybuf`.
+    ///
     /// ## Example
     ///
     /// ```
@@ -439,9 +442,13 @@ impl Anybuf {
     ///     ])
     ///     .into_vec();
     /// ```
-    pub fn append_repeated_message(mut self, field_number: u32, messages: &[&Anybuf]) -> Self {
+    pub fn append_repeated_message<M: AsRef<Anybuf>>(
+        mut self,
+        field_number: u32,
+        messages: &[M],
+    ) -> Self {
         for message in messages {
-            let data = message.as_bytes();
+            let data = message.as_ref().as_bytes();
             // tag
             self.append_tag(field_number, WireType::Len);
             // length
@@ -473,6 +480,13 @@ impl Anybuf {
         // https://protobuf.dev/programming-guides/proto3/#assigning-field-numbers
         let tag: u32 = (field_number << 3) | field_type as u32;
         unsigned_varint_encode(tag as u64, &mut self.output);
+    }
+}
+
+impl AsRef<Anybuf> for Anybuf {
+    #[inline]
+    fn as_ref(&self) -> &Anybuf {
+        self
     }
 }
 
@@ -929,7 +943,17 @@ mod tests {
         // echo "id: \"no messages\"; messages: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "no messages")
-            .append_repeated_message(11, &[]);
+            .append_repeated_message::<&Anybuf>(11, &[]);
         assert_eq!(data.into_vec(), hex!("0a0b6e6f206d65737361676573"));
+
+        // Works for owned Anybuf instances. We can't easily create a Vec<&Anybuf> because the references outlive the instances.
+        let owned: Vec<Anybuf> = vec![
+            Anybuf::new().append_uint32(1, 1),
+            Anybuf::new().append_uint32(1, 2),
+            Anybuf::new().append_uint32(1, 3),
+        ];
+        // echo "messages: [{ number: 1}, { number: 2}, { number: 3}]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let data = Anybuf::new().append_repeated_message(11, &owned);
+        assert_eq!(data.into_vec(), hex!("5a0208015a0208025a020803"));
     }
 }
