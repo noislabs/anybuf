@@ -375,19 +375,40 @@ impl Anybuf {
     ///
     /// Use this instead of multiple [`Anybuf::append_string`] to ensure "" values are not lost.
     ///
+    /// The generic type `S` is the type of a single element in the input slice. This
+    /// is typically something like `&str` or `String`.
+    ///
     /// ## Example
     ///
     /// ```
     /// # use anybuf::Anybuf;
     /// let name = "Bono".to_string();
     ///
-    /// // Three string fields with field number 4
+    /// // Three string fields with field number 4, slice of &str
     /// let serialized = Anybuf::new()
     ///     .append_repeated_string(4, &["", "Caro", &name])
     ///     .into_vec();
+    ///
+    /// // Works with String too
+    /// let owned: Vec<String> = vec![
+    ///     "green".to_string(),
+    ///     "orange".to_string(),
+    /// ];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &owned)
+    ///     .into_vec();
+    ///
+    /// // Or array of constant values
+    /// const A: &str = "Alice";
+    /// const B: &str = "Bob";
+    /// const ARRAY: [&str; 2] = [A, B];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_string(4, &ARRAY)
+    ///     .into_vec();
     /// ```
-    pub fn append_repeated_string(mut self, field_number: u32, data: &[&str]) -> Self {
+    pub fn append_repeated_string<S: AsRef<str>>(mut self, field_number: u32, data: &[S]) -> Self {
         for value in data {
+            let value = value.as_ref();
             self.append_tag(field_number, WireType::Len);
             unsigned_varint_encode(value.len() as u64, &mut self.output);
             self.output.extend_from_slice(value.as_bytes());
@@ -399,19 +420,41 @@ impl Anybuf {
     ///
     /// Use this instead of multiple [`Anybuf::append_bytes`] to ensure empty values are not lost.
     ///
+    /// The generic type `B` is the type of a single element in the input slice. This
+    /// is typically something like `&[u8]`, `Vec<u8>` but also `&str` and `String` work.
+    ///
     /// ## Example
     ///
     /// ```
     /// # use anybuf::Anybuf;
     /// let blob = vec![4u8; 75];
     ///
-    /// // Three bytes fields with field number 5
+    /// // Three bytes fields with field number 5, slice of slices
     /// let serialized = Anybuf::new()
-    ///     .append_repeated_bytes(5, &[b"", b"abcd", &blob])
+    ///     .append_repeated_bytes(5, &[blob.as_slice(), b"", b"abcd"])
+    ///     .into_vec();
+    ///
+    /// // Works with Vec<u8> elements too
+    /// let owned: Vec<Vec<u8>> = vec![
+    ///     vec![1u8; 10],
+    ///     vec![2u8; 10],
+    ///     vec![3u8; 10],
+    /// ];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &owned)
+    ///     .into_vec();
+    ///
+    /// // Or array of constant values
+    /// const A: &[u8] = b"Alice";
+    /// const B: &[u8] = b"Bob";
+    /// const ARRAY: [&[u8]; 2] = [A, B];
+    /// let serialized = Anybuf::new()
+    ///     .append_repeated_bytes(5, &ARRAY)
     ///     .into_vec();
     /// ```
-    pub fn append_repeated_bytes(mut self, field_number: u32, data: &[&[u8]]) -> Self {
+    pub fn append_repeated_bytes<B: AsRef<[u8]>>(mut self, field_number: u32, data: &[B]) -> Self {
         for value in data {
+            let value = value.as_ref();
             // tag
             self.append_tag(field_number, WireType::Len);
             // length
@@ -893,8 +936,19 @@ mod tests {
         // echo "id: \"no strings\"; strings: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "no strings")
-            .append_repeated_string(9, &[]);
+            .append_repeated_string::<&str>(9, &[]);
         assert_eq!(data.into_vec(), hex!("0a0a6e6f20737472696e6773"));
+
+        // vector of Strings
+        // echo "id: \"strings\"; strings: [\"a\", \"b\", \"c\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let owned = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let data = Anybuf::new()
+            .append_string(1, "strings")
+            .append_repeated_string(9, &owned);
+        assert_eq!(
+            data.into_vec(),
+            hex!("0a07737472696e67734a01614a01624a0163")
+        );
     }
 
     #[test]
@@ -902,7 +956,7 @@ mod tests {
         // echo "id: \"bytess\"; bytess: [\"\", \"a\", \"bcde\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "bytess")
-            .append_repeated_bytes(10, &[b"", b"a", b"bcde"]);
+            .append_repeated_bytes::<&[u8]>(10, &[b"", b"a", b"bcde"]);
         assert_eq!(
             data.into_vec(),
             hex!("0a066279746573735200520161520462636465")
@@ -911,8 +965,20 @@ mod tests {
         // echo "id: \"no bytess\"; bytess: []" | protoc --encode=Collection *.proto | xxd -p -c 9999
         let data = Anybuf::new()
             .append_string(1, "no bytess")
-            .append_repeated_bytes(10, &[]);
+            .append_repeated_bytes::<&[u8]>(10, &[]);
         assert_eq!(data.into_vec(), hex!("0a096e6f20627974657373"));
+
+        // vector of bytes
+        // echo "id: \"bytess\"; bytess: [\"c\", \"b\", \"a\"]" | protoc --encode=Collection *.proto | xxd -p -c 9999
+        let owned = vec![
+            "c".to_string().into_bytes(),
+            "b".to_string().into_bytes(),
+            "a".to_string().into_bytes(),
+        ];
+        let data = Anybuf::new()
+            .append_string(1, "bytess")
+            .append_repeated_bytes(10, &owned);
+        assert_eq!(data.into_vec(), hex!("0a06627974657373520163520162520161"));
     }
 
     #[test]

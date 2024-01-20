@@ -649,9 +649,9 @@ impl<'a> Bufany<'a> {
     /// let serialized = Anybuf::new()
     ///     .append_uint64(1, 150)
     ///     .append_repeated_bytes(2, &[&myvec])
-    ///     .append_repeated_bytes(3, &[b"\x01\x02\x03", b"\x00"])
+    ///     .append_repeated_bytes::<&[u8]>(3, &[b"\x01\x02\x03", b"\x00"])
     ///     .append_repeated_string(4, &["valid utf8 string", "hello"])
-    ///     .append_repeated_bytes(5, &[])
+    ///     .append_repeated_bytes::<&[u8]>(5, &[])
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
     /// assert_eq!(decoded.repeated_bytes(2).unwrap(), &[&[0xF0, 0x00]]);
@@ -1206,9 +1206,9 @@ mod tests {
         let serialized = Anybuf::new()
             .append_uint64(1, 150)
             .append_repeated_bytes(2, &[vec![0xF0u8, 0x00].as_slice()])
-            .append_repeated_bytes(3, &[b"\x01\x02\x03", b"\x00", b"", b"blub"])
+            .append_repeated_bytes::<&[u8]>(3, &[b"\x01\x02\x03", b"\x00", b"", b"blub"])
             .append_repeated_string(4, &["valid utf8 string", "hello"])
-            .append_repeated_bytes(5, &[])
+            .append_repeated_bytes::<&[u8]>(5, &[])
             .into_vec();
         let decoded = Bufany::deserialize(&serialized).unwrap();
         // Wrong type
@@ -1237,7 +1237,7 @@ mod tests {
             .append_repeated_sint32(1, &[1, 2, 3])
             .append_repeated_string(2, &["foo", "bar"])
             .append_repeated_string(3, &["foo", "foo", "", "ok"])
-            .append_repeated_string(4, &[])
+            .append_repeated_string::<String>(4, &[])
             .append_repeated_bytes(5, &[b"hello", b"world"])
             .append_repeated_bytes(6, &[b"\xf0\x00"])
             .into_vec();
