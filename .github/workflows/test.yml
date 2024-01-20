@@ -8,10 +8,41 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: cargo test
+  build:
+    strategy:
+      matrix:
+        rust-version: ["1.70.0", "1.75.0"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --all-features
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "${{ matrix.rust-version }}"
+          targets: "wasm32-unknown-unknown"
+      - run: cargo build
+      - run: cargo build --target wasm32-unknown-unknown
+
+  test:
+    strategy:
+      matrix:
+        rust-version: ["1.70.0", "1.75.0"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "${{ matrix.rust-version }}"
+      - run: cargo test
+
+  clippy:
+    strategy:
+      matrix:
+        rust-version: ["1.70.0", "1.75.0"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "${{ matrix.rust-version }}"
+          components: "clippy"
+      - run: cargo clippy --all-targets -- -D warnings

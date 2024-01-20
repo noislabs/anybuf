@@ -31,5 +31,5 @@ mod bufany;
 mod slice_reader;
 mod varint;
 
-pub use anybuf::Anybuf;
-pub use bufany::{Bufany, BufanyError};
+pub use crate::anybuf::Anybuf;
+pub use crate::bufany::{Bufany, BufanyError};
