@@ -38,7 +38,7 @@ impl<'x> SliceReader<'x> {
 
     /// Reads one byte and advances the reader by 1
     pub fn read_one(&mut self) -> Option<u8> {
-        if self.len() < 1 {
+        if self.is_empty() {
             return None;
         }
         let out = self.data[self.pos];
