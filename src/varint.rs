@@ -55,9 +55,7 @@ pub fn read_unsigned_varint(data: &mut SliceReader) -> Option<u64> {
     // If byte_counter becomes 10, the `value << (byte_counter * 7)` performs a
     // left shift of 70 bits on a u64 which leads to an overflow panic.
     for byte_counter in 0..10 {
-        let Some(byte) = data.read_one() else {
-            return None;
-        };
+        let byte = data.read_one()?;
         let value = (byte & 0x7f) as u64;
         out += value << (byte_counter * 7);
         if byte & 0x80 == 0 {
