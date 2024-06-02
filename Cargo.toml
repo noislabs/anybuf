@@ -10,6 +10,10 @@ repository = "https://github.com/noislabs/anybuf"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 
 [dev-dependencies]
