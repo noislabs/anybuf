@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::varint::{to_zigzag32, to_zigzag64, unsigned_varint_encode};
 
 /// The protobuf wire types
@@ -537,6 +539,9 @@ impl AsRef<Anybuf> for Anybuf {
 mod tests {
     use super::*;
     use hex_literal::hex;
+
+    use alloc::string::{String, ToString};
+    use alloc::vec;
 
     #[test]
     fn new_returns_empty_data() {

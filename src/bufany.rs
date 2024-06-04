@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use alloc::collections::BTreeMap;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use crate::{
     slice_reader::SliceReader,
@@ -34,7 +36,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Bufany<'a> {
     // A map from field number to decoded value.
-    fields: HashMap<u32, Vec<Value<'a>>>,
+    fields: BTreeMap<u32, Vec<Value<'a>>>,
     // A vector that is always empty and has the lifetime we need.
     empty_vec: Vec<Value<'a>>,
 }
@@ -820,6 +822,8 @@ mod tests {
     use crate::Anybuf;
 
     use super::*;
+    use alloc::string::ToString;
+    use alloc::vec;
 
     #[test]
     fn deserialize_works() {

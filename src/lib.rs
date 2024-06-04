@@ -26,6 +26,10 @@
 //! - Packed encoding for repeated fields
 //! - Maps support (but you can use the equivalent [encoding via repeated messages](https://protobuf.dev/programming-guides/encoding/#maps))
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 mod anybuf;
 mod bufany;
 mod slice_reader;
