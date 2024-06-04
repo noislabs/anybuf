@@ -22,6 +22,19 @@ jobs:
       - run: cargo build
       - run: cargo build --target wasm32-unknown-unknown
 
+  build-no_std:
+    strategy:
+      matrix:
+        rust-version: ["1.70.0", "1.75.0"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "${{ matrix.rust-version }}"
+          targets: "thumbv6m-none-eabi"
+      - run: cargo check --no-default-features --target thumbv6m-none-eabi
+
   test:
     strategy:
       matrix:
