@@ -59,6 +59,43 @@ pub enum RepeatedStringError {
     InvalidUtf8,
 }
 
+impl core::fmt::Display for BufanyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Error decoding protobuf: ")?;
+        match self {
+            BufanyError::InvalidTag => f.write_str("Invalid tag"),
+            BufanyError::InvalidFieldNumber => {
+                f.write_str("Invalid field number, must be between 1 and 536,870,911")
+            }
+            BufanyError::UnsupportedWireType(wire_type) => {
+                write!(f, "Unsupported wire type: {}", wire_type)
+            }
+            BufanyError::ErrorDecodingVarint => f.write_str("Error decoding varint"),
+            BufanyError::UnexpectedEndOfData => f.write_str("Unexpected end of data"),
+        }
+    }
+}
+
+impl core::fmt::Display for RepeatedStringError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Error decoding repeated string: ")?;
+        match self {
+            RepeatedStringError::TypeMismatch => {
+                f.write_str("Found a value of the wrong wire type")
+            }
+            RepeatedStringError::InvalidUtf8 => {
+                f.write_str("A variable length field did not contain valid UTF-8")
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for BufanyError {}
+
+#[cfg(feature = "std")]
+impl std::error::Error for RepeatedStringError {}
+
 impl Bufany<'_> {
     /// Creates an empty instance with the given lifetime.
     ///
