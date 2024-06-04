@@ -57,6 +57,8 @@ impl<'x> SliceReader<'x> {
 mod tests {
     use super::*;
 
+    use alloc::vec;
+
     #[test]
     fn read_array_works() {
         let original = vec![5u8, 7, 234, 2, 45, 0, 12, 32, 192];

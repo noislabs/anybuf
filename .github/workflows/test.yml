@@ -34,6 +34,18 @@ jobs:
           toolchain: "${{ matrix.rust-version }}"
       - run: cargo test
 
+  test-no_std:
+    strategy:
+      matrix:
+        rust-version: ["1.70.0", "1.75.0"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "${{ matrix.rust-version }}"
+      - run: cargo test --no-default-features
+
   clippy:
     strategy:
       matrix:

@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::slice_reader::SliceReader;
 
 #[allow(dead_code)]
@@ -68,6 +70,8 @@ pub fn read_unsigned_varint(data: &mut SliceReader) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use alloc::vec;
 
     #[test]
     fn to_zigzag32_works() {

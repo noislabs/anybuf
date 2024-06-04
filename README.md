@@ -61,3 +61,13 @@ let deserialized = Bufany::deserialize(&data).unwrap(); // data from above
 let id = deserialized.uint64(1).unwrap(); // 4
 let title = deserialized.string(2).unwrap(); // "hello"
 ```
+
+## `no_std` support
+
+Since version 0.5.0 there is a default `std` feature. If you remove that, the library is built with `no_std` support.
+As the anybuf maintainers do not require `no_std` support this is provided at a best effort basis and might be broken.
+
+```toml
+[dependencies]
+anybuf = { version = "0.5.0", default-features = false }
+```
