@@ -41,7 +41,7 @@ pub struct Bufany<'a> {
     empty_vec: Vec<Value<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BufanyError {
     /// Found tag that is either not valid protobuf or unsuppored
     InvalidTag,
@@ -53,7 +53,7 @@ pub enum BufanyError {
     UnexpectedEndOfData,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RepeatedStringError {
     /// Found a value of the wrong wire type
     TypeMismatch,
