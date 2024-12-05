@@ -36,4 +36,4 @@ mod slice_reader;
 mod varint;
 
 pub use crate::anybuf::Anybuf;
-pub use crate::bufany::{Bufany, BufanyError, RepeatedStringError};
+pub use crate::bufany::{Bufany, BufanyError, RepeatedMessageError, RepeatedStringError};
