@@ -716,7 +716,7 @@ impl<'a> Bufany<'a> {
     /// ## Example
     ///
     /// ```
-    /// use anybuf::{Anybuf, Bufany};
+    /// use anybuf::{Anybuf, Bufany, RepeatedStringError};
     ///
     /// let serialized = Anybuf::new()
     ///     .append_uint64(1, 150)
@@ -724,7 +724,13 @@ impl<'a> Bufany<'a> {
     ///     .append_repeated_string(3, &["valid utf8 string", "hello"])
     ///     .into_vec();
     /// let decoded = Bufany::deserialize(&serialized).unwrap();
-    /// assert_eq!(decoded.repeated_string(3).unwrap(), ["valid utf8 string".to_string(), "hello".to_string()]);
+    ///
+    /// // happy path
+    /// let strings = decoded.repeated_string(3).unwrap();
+    /// assert_eq!(strings, ["valid utf8 string".to_string(), "hello".to_string()]);
+    ///
+    /// // cannot get strings from int field
+    /// assert!(matches!(decoded.repeated_string(1).unwrap_err(), RepeatedStringError::TypeMismatch));
     /// ```
     pub fn repeated_string(&self, field_number: u32) -> Result<Vec<String>, RepeatedStringError> {
         let values = self.repeated_value_ref(field_number);
